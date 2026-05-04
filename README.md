@@ -317,6 +317,7 @@ inside this launcher's portable zip.
 - [`docs/INSTALL.md`](docs/INSTALL.md), full install + the bring-your-own-venv path.
 - [`docs/CLAUDE_CODE.md`](docs/CLAUDE_CODE.md), point Claude Code at the local server (native `/v1/messages`, no proxy).
 - [`docs/CODEX.md`](docs/CODEX.md), use OpenAI Codex CLI with this server (Responses API, `developer`-role template fix).
+- [`docs/PI.md`](docs/PI.md), use the Pi coding agent with this server (custom provider extension, auto-compaction notes).
 - [`docs/UNINSTALL.md`](docs/UNINSTALL.md), clean removal (it's portable, so just delete folders).
 - [`docs/HARDWARE.md`](docs/HARDWARE.md), what works, what doesn't, and why.
 - [`docs/COMPARISON.md`](docs/COMPARISON.md), how this stacks up against Ollama, LM Studio, llama.cpp, Docker, and WSL2.
