@@ -239,6 +239,47 @@ def resolve_cuda_visible_devices(preferred_single: str, world_size: int) -> str 
     return preferred_single
 
 
+def _latest_vctools_version(vcvars_path: str) -> str | None:
+    """Find the newest MSVC toolset version installed alongside vcvars64.bat.
+
+    vcvars64.bat without ``VCToolsVersion`` set picks an unspecified
+    default toolset — which on systems with multiple VS Build Tools
+    side-by-side (e.g. 14.38 + 14.44) is frequently the older one. The
+    older 14.38 ``cl.exe`` rejects empty-brace initializers (``T x = {};``)
+    that Triton's generated ``__triton_launcher.c`` emits, breaking the
+    fused_gdn_gating JIT compile on Qwen3-Next with:
+
+        error C2059: syntax error: '}'
+
+    Pinning ``VCToolsVersion`` to the highest available toolset
+    sidesteps the bug. Layout:
+        <install>\\VC\\Auxiliary\\Build\\vcvars64.bat   (VCVARS)
+        <install>\\VC\\Tools\\MSVC\\<version>\\          (one per toolset)
+
+    Returns the highest version directory name, or None when the layout
+    isn't recognized.
+    """
+    try:
+        vc_root = Path(vcvars_path).parents[2]
+        tools_dir = vc_root / "Tools" / "MSVC"
+        if not tools_dir.is_dir():
+            return None
+        versions = []
+        for p in tools_dir.iterdir():
+            if not p.is_dir():
+                continue
+            parts = p.name.split(".")
+            if len(parts) >= 2 and all(s.isdigit() for s in parts[:2]):
+                key = tuple(int(s) for s in parts if s.isdigit())
+                versions.append((key, p.name))
+        if not versions:
+            return None
+        versions.sort()
+        return versions[-1][1]
+    except (OSError, ValueError):
+        return None
+
+
 def msvc_env() -> dict:
     """Capture env vars set by vcvars64.bat so FlashInfer's ninja+cl.exe JIT works.
 
@@ -246,14 +287,20 @@ def msvc_env() -> dict:
     compile a new prefill kernel at first request. Best-effort: shipped
     snapshots use TRITON_ATTN, not FlashInfer JIT, so failure here is a
     warning, not a fatal error.
+
+    Also pins ``VCToolsVersion`` to the newest installed MSVC toolset to
+    avoid 14.38's stricter C parser tripping on Triton's generated
+    ``__triton_launcher.c`` (issue #7).
     """
     if not Path(VCVARS).exists():
         print(f"[warn] vcvars64.bat not found at {VCVARS} - FlashInfer JIT may fail.")
         return {}
     path_prefix = f'set "PATH={VS_INSTALLER_DIR};%PATH%" && ' if Path(VS_INSTALLER_DIR).is_dir() else ""
+    latest_tools = _latest_vctools_version(VCVARS)
+    tools_prefix = f'set "VCToolsVersion={latest_tools}" && ' if latest_tools else ""
     try:
         out = subprocess.check_output(
-            f'cmd /S /C "{path_prefix}"{VCVARS}" && set"',
+            f'cmd /S /C "{path_prefix}{tools_prefix}"{VCVARS}" && set"',
             text=True, errors="replace", stderr=subprocess.STDOUT,
         )
     except (subprocess.CalledProcessError, OSError) as e:
