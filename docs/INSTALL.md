@@ -31,8 +31,13 @@ For users who just want it to run.
 6. The TUI walks you through:
    - Detecting your GPUs and warning if any are below sm_86.
    - Asking which snapshot to launch.
-   - First run: offers to install the wheel into a sibling `venv\` and apply
-     the patches automatically.
+   - First run: bootstraps the embedded Python with `setuptools`,
+     `wheel`, and `pybind11` (needed because the Blackwell wheel pulls
+     fastsafetensors from a SystemPanic source tarball whose
+     `pyproject.toml` imports pybind11 at module load and pip's
+     build-isolation env doesn't always propagate on embedded Python),
+     then installs the bundled vLLM wheel into a sibling `venv\`. The
+     devnen patches are baked into the wheel — there's nothing to apply.
    - Optional one-click coherence check after the server boots.
 
 ## 2. Wheel-only, for users with their own venv

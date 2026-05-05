@@ -7,8 +7,11 @@ The Blackwell zip ships vLLM 0.20.0+cu132.devnen.1. The matrix below is
 the 0.19 reference; 0.20 results are empirical and only partially
 validated. Confirmed on a single RTX 5090 (sm_120) on 2026-05-05:
 **TP=1 + MTP works** — Marlin sm_120 + AutoRound INT4 boots, serves,
-and decodes correctly. Initial single-card decode is ~36 tok/s eager
-(MTP n=6 ctx 200k); MTP-on-Blackwell tuning is still TBD. PP=2 + MTP
+and decodes correctly. Verified single-card decode is **124.8 tok/s**
+on `rtx5090_speed` (ctx 120k, MTP n=6, mem_util 0.95). MTP-on-Blackwell
+sweep across n=3..n=8 is still TBD; the value chosen is the
+3090-tuned long-prompt peak rather than re-swept on Blackwell.
+PP=2 + MTP
 and PP=2 + ngram have not been re-tested on 0.20 yet — the
 `Qwen3NextMTP.SupportsPP` block and the ngram drafter bug were 0.19-era
 and may or may not be fixed. NCCL is the default on Windows in 0.20

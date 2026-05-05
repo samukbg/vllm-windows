@@ -16,6 +16,14 @@ KV, FlashInfer, and a few Genesis patches are unavailable. What remains:
    on a representative prompt for a new workload, don't trust a single
    fixed number.
 
+   On RTX 5090 (Blackwell zip, vLLM 0.20.0+cu132.devnen.1) the same
+   MTP n=6 setting at ctx 120k delivers **124.8 tok/s** on
+   `rtx5090_speed` (39-token prompt, 300-token completion, mem_util
+   0.95). The Blackwell-specific n sweep across n=3..n=8 is still
+   TBD; the n=6 value is carried over from the 3090 tune. The 5090
+   has more memory bandwidth and a different cudagraph profile so
+   the optimum may shift — re-sweep before posting numbers.
+
 2. **Power cap.** 250 W → 350 W: prefill +16 %, decode unchanged (decode
    is memory-bandwidth-bound at batch=1 / max-num-seqs=1). If you want
    decode speed, more power doesn't help; if you want short-prompt TTFT,

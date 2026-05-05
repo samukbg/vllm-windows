@@ -264,16 +264,15 @@ during boot, then reopening them after vLLM finishes booting. If you
 can't boot-quiet, fall back to `start_gpu0_50k`. Either path is
 covered in [`docs/WINDOWS_VRAM_HEADLESS.md`](docs/WINDOWS_VRAM_HEADLESS.md).
 
-> **RTX 50-series (Blackwell, 5060 / 5070 / 5080 / 5090): not in this
-> wheel yet.** The bundled `vllm-0.19.0+devnen.1` is built against CUDA
-> 12.6 / PyTorch cu126 which has no sm_120 kernels, so the engine fails
-> at boot with `cudaErrorNoKernelImageForDevice`. SystemPanic shipped
-> `vllm-windows v0.20.0` (CUDA 13, Ampere + Blackwell, NCCL TP/PP on
-> Windows) on 2026-04-30; the rebase onto that wheel is tracked
-> separately. In the meantime, Blackwell users can either use
-> [jaMMint's WSL2 vllm-blackwell-guide](https://github.com/lastloop-ai/vllm-blackwell-guide)
-> (~120 tok/s on 5090, pays the WSL tax) or wait for the Blackwell
-> branch of this project.
+> **RTX 50-series (Blackwell, 5060 / 5070 / 5080 / 5090): supported via
+> the Blackwell zip.** Download
+> `qwen3.6-windows-server-portable-x64-blackwell.zip` instead of the
+> default zip. It bundles `vllm-0.20.0+cu132.devnen.1` against CUDA 13.2
+> / PyTorch cu130 with `sm_120` kernels. Verified end-to-end on a single
+> RTX 5090: **124.8 decode tok/s** on `rtx5090_speed` (ctx 120k, MTP
+> n=6). Three 5090 snapshots ship: `rtx5090_speed` (120k), `rtx5090`
+> (200k), `rtx5090_max` (280k, MTP n=3). NVIDIA driver 596+ required.
+> See [`docs/BLACKWELL.md`](docs/BLACKWELL.md) for the full story.
 
 If you're on a 4090, expect slightly higher numbers than mine. If
 you're on something more exotic, nothing here is going to work without

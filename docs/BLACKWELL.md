@@ -11,8 +11,9 @@ Single landing page for everything Blackwell. If you have an RTX 5060,
    **Not** the default zip — the default is for 30/40-series only.
 2. Make sure your NVIDIA driver is **596 or newer** (CUDA 13 is
    required). `nvidia-smi` shows the driver version.
-3. Extract anywhere, double-click `start.bat`, pick the
-   `rtx5090` snapshot.
+3. Extract anywhere, double-click `start.bat`, pick a 5090 snapshot
+   — `rtx5090_speed` (120k ctx, fastest), `rtx5090` (200k ctx,
+   balanced), or `rtx5090_max` (280k ctx).
 
 That's it. The launcher autodetects the bundled wheel as a CUDA 13
 build and installs the right torch index (cu130) plus a runtime shim
@@ -47,7 +48,7 @@ End-to-end on a single RTX 5090 (driver 596.36, sm_120, 32 GB) on
 | `/v1/chat/completions`, `/v1/messages`, `/v1/responses` | yes |
 | Marlin sm_120 + AutoRound INT4 | works; Marlin selects `MarlinLinearKernel` for `GPTQMarlinLinearMethod` on first load. The `scalar_types.int4` Marlin sm_120 bug from older vLLM versions is **fixed** in 0.20.0. |
 | TP=1 + MTP n=6 | works |
-| Eager-mode decode at ctx 200k | ~36 tok/s initial measurement |
+| Decode tok/s | **124.8 tok/s** on `rtx5090_speed` (ctx 120k, MTP n=6, mem_util 0.95, 39-token prompt, 300-token completion). vLLM boot log: `GPU KV cache size: 79,968 tokens, Maximum concurrency for 120,000 tokens per request: 2.00x` — 240k ctx is achievable at the same MTP n=6 if needed. |
 | CUDA 13 toolkit on host | **not required**. The launcher copies torch's bundled `cudart64_13.dll`, `cublas64_13.dll`, etc. from `venv\Lib\site-packages\torch\lib\` into a writable `cuda13_shim\bin\` and points `CUDA_PATH` there so flashinfer's import-time `CDLL` succeeds. |
 
 ## What's NOT yet validated on Blackwell
@@ -75,24 +76,24 @@ not been re-tested on the 0.20 wheel that ships in the Blackwell zip:
 If you have a 2× 5090 box or a 5090 + 3090 box, please boot the
 Blackwell zip on it, run the `pp2_160k` snapshot, and post numbers.
 
-## The default snapshot for 5090
+## The 5090 snapshots
 
-`rtx5090`:
+The Blackwell zip ships three single-card 5090 snapshots, all GPU0,
+all port 5001, all attention backend TRITON_ATTN, all KV dtype
+fp8_e4m3, all with a randomised `--data-parallel-rpc-port` (see
+"RPC port leak" below) and **no** `VLLM_ATTENTION_BACKEND` env var
+(deprecated in 0.20.0; the CLI flag still works):
 
-- single-card, GPU0
-- ctx 200,000
-- mem_util 0.93 (32 GB allows higher; 0.93 leaves headroom for
-  cudagraph capture and async-scheduler overhead)
-- MTP n=6
-- port 5001
-- attention backend TRITON_ATTN
-- KV dtype fp8_e4m3
-- random `--data-parallel-rpc-port` (see "RPC port leak" below)
-- **no** `VLLM_ATTENTION_BACKEND` env var (deprecated in 0.20.0; the
-  CLI flag still works)
+| Snapshot         | ctx  | MTP n | mem_util | Decode (verified) | Use it when |
+|------------------|------|-------|----------|-------------------|-------------|
+| `rtx5090_speed`  | 120k | 6     | 0.95     | **124.8 tok/s**   | Default — 120k is enough for almost everything and you want max decode. |
+| `rtx5090`        | 200k | 6     | 0.93     | not benched       | Mid-balance: bigger ctx than `_speed`, MTP still on. |
+| `rtx5090_max`    | 280k | 3     | 0.95     | not benched       | Largest single-card context. Lower MTP n trades acceptance rate for headroom. |
+
+All three beat every 3090 snapshot on context size at the same MTP n.
 
 If you want a different combo, `e` on the dashboard opens the
-snapshot editor. Duplicate `rtx5090`, edit, save. The launcher
+snapshot editor. Duplicate any of the three, edit, save. The launcher
 rewrites both the YAML and the `.py` for you.
 
 ## Driver and toolkit requirements
@@ -174,11 +175,11 @@ emits a one-line `Unknown vLLM environment variable:
 VLLM_ATTENTION_BACKEND` warning. The CLI flag
 (`--attention-backend=TRITON_ATTN`) is the right answer either way.
 
-The shipped `start_5090` snapshot does not set the env var. The other
-snapshots (carried over from the 0.19 path) still set it; on the
-Blackwell zip those produce the warning above and otherwise behave
-identically. To silence the warning, drop the env-var line from the
-snapshot or rebuild it via the in-TUI editor.
+The three shipped `rtx5090*` snapshots do not set the env var. The
+other snapshots (carried over from the 0.19 path) still set it; on
+the Blackwell zip those produce the warning above and otherwise
+behave identically. To silence the warning, drop the env-var line
+from the snapshot or rebuild it via the in-TUI editor.
 
 ## When to keep using WSL2 / the Blackwell guide instead
 
@@ -205,7 +206,7 @@ shipped tool-calling fixes.
 If you bench the Blackwell zip, please post:
 
 - GPU model + driver version (`nvidia-smi --query-gpu=name,driver_version --format=csv`)
-- Snapshot id (e.g. `rtx5090`)
+- Snapshot id (`rtx5090_speed`, `rtx5090`, `rtx5090_max`, or your custom one)
 - Output of `windows_tools\check_coherence.py --port 5001` (decode
   tok/s without coherence is meaningless)
 - Output of `windows_tools\bench_summarize.py` (a single TSV row

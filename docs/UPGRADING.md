@@ -22,6 +22,13 @@ That:
    leaves the parts that hold your data alone.
 6. Asks if you want to relaunch `start.bat`. Default yes.
 
+The embedded Python (`python\`) is replaced too, even though the
+running updater is itself the embedded interpreter. That works via a
+detached `_update_finalize.bat` spawned just before `update.py`
+exits, which waits for the parent PID, atomically renames
+`python.new\` → `python\`, then self-deletes. You may briefly see
+that file appear next to `start.bat` during the swap; it's expected.
+
 The whole thing is one prompt to keep `launcher\configs.yaml` (default
 yes) and one prompt to relaunch (default yes). Holding Enter through
 both does the right thing.
@@ -77,10 +84,11 @@ update.bat --variant ampere
 
 Variant switching keeps your `user_config.json`, `models\`, and
 `launcher\configs.yaml` (with the prompt) intact. The shipped
-`start_5090` snapshot will still be in `launcher\configs.yaml` after
-switching to ampere, but it won't show up on the dashboard if no
-50-series card is detected; harmless. You can delete it from the
-snapshot editor (`e` on the dashboard) if you want a clean list.
+`rtx5090_speed`, `rtx5090`, and `rtx5090_max` snapshots will still be
+in `launcher\configs.yaml` after switching to ampere, but they won't
+show up on the dashboard if no 50-series card is detected; harmless.
+You can delete them from the snapshot editor (`e` on the dashboard)
+if you want a clean list.
 
 ## Re-running the updater offline / against a custom zip
 
