@@ -47,7 +47,12 @@ WHEEL_DIR_NAME = "wheels"
 LEGACY_WHEEL_FILENAME = "vllm.whl"  # back-compat with v0.1.4 release zips
 GET_PIP_VENDORED_NAME = "get-pip.py"
 GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
-TORCH_INDEX = "https://download.pytorch.org/whl/cu126"
+# Default torch index. Overridden when the bundled wheel carries a cu13x
+# local-version (Blackwell-supporting build), in which case we pull torch
+# from the cu130 channel instead. See _torch_index_for_wheel.
+TORCH_INDEX_CU126 = "https://download.pytorch.org/whl/cu126"
+TORCH_INDEX_CU130 = "https://download.pytorch.org/whl/cu130"
+TORCH_INDEX = TORCH_INDEX_CU126
 # NuGet python package ships the C headers (Include/) and import libs
 # (libs/python312.lib) that python.org's embeddable distribution strips.
 # Triton's JIT needs both to compile cuda_utils.c at first model load.
@@ -315,15 +320,37 @@ def _fmt_bytes(n: float) -> str:
     return f"{n:.2f} PiB"
 
 
+def _torch_index_for_wheel(wheel: Path) -> str:
+    """Pick the pytorch wheel index that matches the bundled wheel's CUDA build.
+
+    The vLLM wheel filename's local-version suffix encodes the CUDA the wheel
+    was built against:
+
+        vllm-0.19.0+devnen.1-cp312-cp312-win_amd64.whl              -> cu126
+        vllm-0.20.0+cu132-cp312-cp312-win_amd64.whl                 -> cu130
+        vllm-0.20.0+cu132.devnen.1-cp312-cp312-win_amd64.whl        -> cu130
+
+    Pulling torch from the wrong channel installs binaries that won't load
+    against the wheel's CUDA runtime. cu130 torch is required for Blackwell
+    (sm_120) anyway — the cu126 build has no sm_120 kernels.
+    """
+    name = wheel.name.lower()
+    if "+cu13" in name:
+        return TORCH_INDEX_CU130
+    return TORCH_INDEX_CU126
+
+
 def _install_wheel(wheel: Path) -> None:
+    torch_index = _torch_index_for_wheel(wheel)
     print()
     print("  Installing vLLM and its ~150 transitive dependencies.")
+    print(f"  torch index: {torch_index}")
     print("  Total download is multiple GB (torch + CUDA wheels + Python deps).")
     print("  Expect 5–15 minutes on a fast connection. Progress prints below.")
     print()
     cmd = [
         sys.executable, "-m", "pip", "install",
-        "--extra-index-url", TORCH_INDEX,
+        "--extra-index-url", torch_index,
         "--no-warn-script-location",
         str(wheel),
     ]
@@ -376,6 +403,147 @@ def _print_banner() -> None:
     print()
 
 
+CUDA13_SHIM_DIRNAME = "cuda13_shim"
+# Files we need from torch/lib/ to satisfy flashinfer's CDLL load on Windows
+# when no real CUDA 13 toolkit is installed. Only cudart64_13.dll is
+# load-bearing for the import-time check; the others are added defensively
+# so JIT paths that go via cublas / nvrtc don't trip later.
+CUDA13_SHIM_FILES = (
+    "cudart64_13.dll",
+    "cublas64_13.dll",
+    "cublasLt64_13.dll",
+    "nvrtc64_130_0.dll",
+    "nvrtc-builtins64_130.dll",
+)
+
+
+def _is_cu13_torch_installed() -> bool:
+    """Return True when the installed torch was built against CUDA 13."""
+    try:
+        import torch  # type: ignore
+    except ImportError:
+        return False
+    cu = (getattr(torch.version, "cuda", "") or "").split(".")
+    if not cu or not cu[0].isdigit():
+        return False
+    return int(cu[0]) >= 13
+
+
+def _ensure_cuda13_shim(torch_lib: Path | None = None) -> Path | None:
+    """Build a tiny CUDA 13 toolkit shim from torch's bundled DLLs.
+
+    Why: vLLM 0.20.0 imports flashinfer at engine startup, which does
+    ``ctypes.CDLL("$CUDA_PATH/bin/cudart64_13.dll")`` against ``CUDA_PATH``
+    (or ``CUDA_HOME`` / ``CUDA_ROOT`` / ``CUDA_LIB_PATH``). A box that has
+    only CUDA 12.x installed will fail this check even though the cu130
+    torch wheel ships ``cudart64_13.dll`` under
+    ``site-packages/torch/lib/``. Rather than ask end users to install the
+    full CUDA 13 toolkit (~3 GB), copy the handful of CUDA 13 DLLs torch
+    already ships into a dedicated shim folder, then point ``CUDA_PATH``
+    at that folder at snapshot launch time (see snapshots/_common.py).
+
+    No-op when:
+      - torch is not yet importable (called too early in install).
+      - torch is a cu12 build (existing 0.19 wheel; old launcher behavior
+        applies).
+      - the shim is already populated.
+
+    Returns the shim directory (containing ``bin/<dlls>``) on success,
+    or ``None`` when no shim is needed.
+    """
+    if not _is_cu13_torch_installed():
+        return None
+    if torch_lib is None:
+        try:
+            import torch  # type: ignore
+        except ImportError:
+            return None
+        torch_lib = Path(torch.__file__).resolve().parent / "lib"
+    shim = paths.writable_root() / CUDA13_SHIM_DIRNAME
+    bin_dir = shim / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    copied = []
+    for fname in CUDA13_SHIM_FILES:
+        src = torch_lib / fname
+        dst = bin_dir / fname
+        if dst.is_file() and dst.stat().st_size == (src.stat().st_size if src.is_file() else 0):
+            continue
+        if not src.is_file():
+            # Defensive: torch packaging changes occasionally renamed DLLs.
+            # Skip if a non-essential one is missing; only cudart64_13 is
+            # actually load-bearing.
+            if fname == "cudart64_13.dll":
+                print(f"  [warn] {src.name} missing in torch/lib; flashinfer will fail on first request.")
+            continue
+        shutil.copy2(src, dst)
+        copied.append(fname)
+    if copied:
+        print(f"[setup] CUDA 13 shim built at {shim} ({len(copied)} DLLs copied from torch/lib)")
+    else:
+        print(f"[setup] CUDA 13 shim already populated at {shim}")
+    return shim
+
+
+def _check_gpu_supports_wheel(wheel: Path) -> tuple[str, str] | None:
+    """Preflight: refuse install if GPU class doesn't match bundled wheel.
+
+    Returns ``(level, message)`` to print, or ``None`` for a clean pass.
+    Level is one of ``"FATAL"`` (refuse, exit 1) or ``"WARN"`` (proceed
+    but tell the user what they're getting).
+
+    Decision matrix:
+      - bundled cu126 (Ampere/Ada zip), GPU is sm_120 (Blackwell): FATAL.
+        wheel has no sm_120 kernels; engine fails at boot.
+      - bundled cu132/cu130 (Blackwell zip), GPU is sm < 8.6: FATAL.
+        too old regardless of wheel choice.
+      - bundled cu132/cu130 (Blackwell zip), GPU is sm 8.6 / 8.9
+        (Ampere/Ada): WARN. wheel works fine but user installed a CUDA-13
+        driver upgrade for nothing — the cu126 zip would have been simpler.
+      - GPU sm < 8.6: FATAL on any wheel.
+    """
+    name = wheel.name.lower()
+    is_cu13_wheel = "+cu13" in name
+    try:
+        out = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=name,compute_cap", "--format=csv,noheader"],
+            text=True, stderr=subprocess.DEVNULL, timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ("WARN", "could not run nvidia-smi to verify GPU; proceeding anyway.")
+    gpus = []
+    for line in out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            n, cap = line.rsplit(",", 1)
+            gpus.append((n.strip(), float(cap.strip())))
+        except ValueError:
+            continue
+    if not gpus:
+        return None
+    max_cap = max(c for _, c in gpus)
+    min_cap = min(c for _, c in gpus)
+    summary = " | ".join(f"{n} (sm_{int(c*10)})" for n, c in gpus)
+    if min_cap < 8.6:
+        return ("FATAL",
+                f"detected GPU with compute capability {min_cap} (Pascal/Turing/older). "
+                f"This launcher requires Ampere (sm_86) or newer. {summary}\n"
+                f"  See docs/HARDWARE.md for the supported card list.")
+    if not is_cu13_wheel and max_cap >= 12.0:
+        return ("FATAL",
+                f"this zip ships an Ampere/Ada wheel (CUDA 12.6) which has no Blackwell (sm_120) kernels.\n"
+                f"  Detected: {summary}.\n"
+                f"  Download the -blackwell zip from\n"
+                f"    https://github.com/devnen/qwen3.6-windows-server/releases\n"
+                f"  and re-extract on top of this install.")
+    if is_cu13_wheel and max_cap < 9.0:
+        return ("WARN",
+                f"this zip ships the Blackwell wheel (CUDA 13). Your GPU works on it but the\n"
+                f"  -ampere zip would not require a CUDA 13 driver update. {summary}")
+    return None
+
+
 def ensure_runtime() -> None:
     """Block until vllm + the bundled wheel's exact build are installed.
 
@@ -400,6 +568,12 @@ def ensure_runtime() -> None:
         and marker.get("wheel_sha256") == bundled_sha
         and _vllm_importable()
     ):
+        # Idempotent: rebuild the CUDA 13 shim if needed (no-op when
+        # already populated; also a no-op for cu126 wheels).
+        try:
+            _ensure_cuda13_shim()
+        except Exception as e:
+            print(f"  [warn] CUDA 13 shim rebuild failed: {e}")
         return
 
     # Older install (no marker / legacy "ok" string) but vllm imports.
@@ -427,10 +601,34 @@ def ensure_runtime() -> None:
 
     proper_wheel = _wheel_proper_filename(wheel)
 
+    # GPU compatibility preflight. Catches wrong-zip-for-this-GPU before
+    # a 6 GB wheel install fails 30 s into model load with an obscure
+    # cudaErrorNoKernelImageForDevice traceback.
+    gpu_check = _check_gpu_supports_wheel(proper_wheel)
+    if gpu_check is not None:
+        level, msg = gpu_check
+        if level == "FATAL":
+            print()
+            print("=" * 70)
+            print(f"  [GPU mismatch] {msg}")
+            print("=" * 70)
+            sys.exit(1)
+        else:
+            print(f"  [warn] {msg}")
+            print()
+
     if not _pip_available():
         _bootstrap_pip()
 
     _install_wheel(proper_wheel)
+
+    # Build the CUDA 13 shim AFTER torch is installed, so torch.__file__ is
+    # resolvable. No-op for cu126 wheels.
+    try:
+        _ensure_cuda13_shim()
+    except Exception as e:
+        print(f"  [warn] CUDA 13 shim build failed: {e}")
+        print("         flashinfer may fail at first model load.")
 
     payload = {
         "wheel_sha256": bundled_sha,

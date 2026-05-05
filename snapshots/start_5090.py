@@ -1,13 +1,19 @@
-"""Launch vLLM serving Qwen3.6-27B (Lorbus AutoRound INT4) on Windows.
+"""Launch vLLM serving Qwen3.6-27B (Lorbus AutoRound INT4) on a single RTX 5090.
 
-Native Windows port of the 85-TPS-single-3090 recipe from the Wasif Basharat
-2026-04-23 writeup. Because vLLM 0.19.0 on Windows does NOT have TurboQuant KV,
-we drop the 3-bit KV path and use fp8_e5m2 instead. The rest of the recipe
-transfers: Lorbus AutoRound quant, MTP spec-decode n=3, cudagraphs, Qwen3
-reasoning + tool parsers, prefix caching.
+Blackwell-tuned counterpart to start_speed.py. Differences from the 3090
+snapshot:
 
-Rollback-safe: uses the existing vllm-windows venv (no modifications). All
-experimentation lives in this folder.
+  - Built against vLLM 0.20.0+cu132.devnen.1 (CUDA 13, sm_120 kernels).
+  - VLLM_ATTENTION_BACKEND env var is no longer read in 0.20.0; only
+    the --attention-backend CLI arg is honored. Setting the env var
+    triggers a "Unknown vLLM environment variable" warning.
+  - 32 GB VRAM gives ~13 GB of KV-cache headroom after weights, so
+    ctx default jumps from 90k (3090) to 200k.
+  - GPU pin defaults to "0" since most 5090 boxes ship single-card.
+
+The 3090 snapshots in this folder remain unchanged. Pick the right
+snapshot for your card from the launcher dashboard, or via
+``configs.yaml -> blackwell`` when running on a 5090-class GPU.
 """
 from __future__ import annotations
 
@@ -19,35 +25,38 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-# Reuse the existing Windows vLLM install so this folder stays rollbackable.
-from _common import VENV, VLLM_EXE, MODEL_PATH, VCVARS, msvc_env, cuda_env, flashinfer_sampler_env, log_path_for, enhanced_jinja_path, resolve_cuda_visible_devices, print_port_collision_banner, random_dp_rpc_port
+from _common import (
+    VENV, VLLM_EXE, MODEL_PATH, VCVARS,
+    msvc_env, cuda_env, flashinfer_sampler_env, log_path_for,
+    enhanced_jinja_path, resolve_cuda_visible_devices,
+    print_port_collision_banner, random_dp_rpc_port,
+)
+
 SERVED_NAME = "qwen3.6-27b-autoround"
 HOST = "0.0.0.0"
-PORT = 5001  # different from vllm-windows (5000), so both can coexist if needed
+PORT = 5001
 
 # ---- Parallelism ------------------------------------------------------------
-# MTP spec-decode is NOT compatible with PP on Qwen3-Next (NotImplementedError
-# on startup). So for max tok/s we run TP=1 on a single GPU with MTP. The
-# second GPU stays free for other work.
-# If you want max context instead, flip to PP=2 MTP=False (no spec-decode).
 TP = 1
 PP = 1
 USE_MTP = True
 NUM_SPEC_TOKENS = 6
 
 # ---- Memory + context -------------------------------------------------------
-# Single-card Lorbus weight footprint: ~16.9 GB. With fp8_e5m2 KV and
-# gpu-memory-utilization=0.95 we expect ~40-60K tokens of KV. Start ctx modest
-# and grow after first successful boot.
-CTX = 90000
-GPU_MEM_UTIL = 0.948  # GPU1 — vLLM sees free=22.76 GiB after CUDA init → 0.948 ceiling
-KV_CACHE_DTYPE = "fp8_e4m3"  # TRITON_ATTN only accepts fp8/fp8_e4m3 (not e5m2).
+# 5090: 32 GB VRAM. Weights ~16.96 GB, leaves ~13.5 GB after profile/activations.
+# Bumping mem_util to 0.93 with ctx 200k is the conservative starting point;
+# raise mem_util / ctx after the first successful boot if the box is headless.
+CTX = 200000
+GPU_MEM_UTIL = 0.93
+KV_CACHE_DTYPE = "fp8_e4m3"  # TRITON_ATTN only accepts fp8_e4m3 on Windows.
 MAX_NUM_BATCHED_TOKENS = 4128
 
 # ---- Misc -------------------------------------------------------------------
-ENFORCE_EAGER = False   # cudagraphs on for decode speedup
-ENABLE_VISION = False   # MoonViT tower adds ~0.9 GB; Windows c10d allreduce
-                        # can crash during vision profile. Keep off initially.
+ENFORCE_EAGER = False     # cudagraphs on
+ENABLE_VISION = False     # MoonViT off; Windows c10d allreduce instability
+GPU_INDEX = "0"           # most 5090 boxes are single-card; override via CUDA_VISIBLE_DEVICES
+
+
 def port_in_use(host: str, port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.5)
@@ -72,24 +81,16 @@ def main() -> int:
         return 1
 
     env = os.environ.copy()
-    # Overlay MSVC dev env so FlashInfer can JIT-compile kernels (needed for
-    # fp8 KV cache which triggers a new prefill kernel build at first request).
     _msvc = msvc_env()
     env.update(_msvc)
-    # vLLM 0.19 unconditionally imports flashinfer in the sampler;
-    # flashinfer's Windows path raises if CUDA_LIB_PATH is unset.
     env.update(cuda_env())
-    # Toggle the flashinfer sampler based on MSVC + ninja availability,
-    # since flashinfer JIT-compiles a sampling module at first profile_run.
     env.update(flashinfer_sampler_env(_msvc))
     ENHANCED_JINJA = enhanced_jinja_path()
     if not Path(ENHANCED_JINJA).exists():
         print(f"[ERROR] enhanced jinja template not found: {ENHANCED_JINJA}", file=sys.stderr)
         return 1
     _world = TP * PP
-    # GPU1 only when single-card (leaves GPU0 free for display/other work);
-    # both cards when TP/PP > 1.
-    _cvd = resolve_cuda_visible_devices("1", _world)
+    _cvd = resolve_cuda_visible_devices(GPU_INDEX, _world)
     if _cvd is None:
         return 1
     env["CUDA_VISIBLE_DEVICES"] = _cvd
@@ -100,11 +101,11 @@ def main() -> int:
     env["RAY_memory_monitor_refresh_ms"] = "0"
     env["OMP_NUM_THREADS"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
-    # Qwen3-Next hybrid arch only accepts FLASHINFER or TRITON_ATTN in vLLM 0.19.0.
-    # FlashInfer fails on Windows because its ninja JIT trips MAX_PATH (ninja
-    # binary doesn't honor LongPathsEnabled). Use TRITON_ATTN which has no JIT.
-    env["VLLM_ATTENTION_BACKEND"] = "TRITON_ATTN"
-    # Windows Gloo stability (inherited from vllm-windows findings):
+    # vLLM 0.20.0 ignores VLLM_ATTENTION_BACKEND env var; only the
+    # --attention-backend CLI arg is honored. We do not set the env var
+    # here so the snapshot doesn't trip the "Unknown vLLM environment
+    # variable" warning.
+    # Windows torch.distributed stability:
     env["USE_LIBUV"] = "0"
     env["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "0"
     env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
@@ -135,9 +136,6 @@ def main() -> int:
         "--no-use-tqdm-on-load",
         f"--host={HOST}",
         f"--port={PORT}",
-        # Random free port for the DP RPC handshake (vLLM 0.20.0 hardcodes
-        # 29550 by default, which leaks across runs when an engine core
-        # orphans itself; harmless on 0.19.x because the same flag exists).
         f"--data-parallel-rpc-port={random_dp_rpc_port()}",
     ]
     if ENFORCE_EAGER:
@@ -152,7 +150,7 @@ def main() -> int:
         )
 
     print("=" * 60)
-    print(f"vLLM serve: {SERVED_NAME}")
+    print(f"vLLM serve: {SERVED_NAME}  (Blackwell snapshot)")
     print(f"  Model   : {MODEL_PATH}")
     print(f"  Ctx     : {CTX}  |  TP: {TP}  |  PP: {PP}")
     print(f"  KV dtype: {KV_CACHE_DTYPE}  |  MTP: {USE_MTP} (n={NUM_SPEC_TOKENS})")

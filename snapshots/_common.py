@@ -362,38 +362,75 @@ def _ensure_cudart_alias(cuda_path: str | Path) -> None:
         pass
 
 
-def cuda_env() -> dict:
-    """Set CUDA_LIB_PATH so flashinfer's import-time check passes.
+def _torch_cuda_major() -> int | None:
+    """Return torch.version.cuda's major version, or None when import fails."""
+    try:
+        import torch  # type: ignore
+    except ImportError:
+        return None
+    cu = (getattr(torch.version, "cuda", "") or "").split(".")
+    if cu and cu[0].isdigit():
+        return int(cu[0])
+    return None
 
-    vLLM 0.19.0 unconditionally imports flashinfer from
-    ``vllm/v1/sample/ops/topk_topp_sampler.py`` regardless of which
-    attention backend is selected. flashinfer's Windows path raises
-    ``ValueError: CUDA_LIB_PATH is not set`` at import time if the
-    env var is missing, taking the whole engine down before TRITON_ATTN
-    even gets a chance to load.
 
-    Probe order:
-      1. Existing ``CUDA_LIB_PATH`` (already set by user, leave alone).
-      2. ``CUDA_PATH`` env var (set by NVIDIA's CUDA Toolkit installer).
-      3. ``CUDA_HOME`` env var (Linux convention, sometimes set).
-      4. Standard install dirs under
-         ``C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\``,
-         newest version first.
-      5. Fallback: the embedded Python dir. flashinfer's check only
-         validates the env var is non-empty; the actual lib path is
-         only used if JIT compilation fires. Shipped snapshots use
-         TRITON_ATTN, so JIT never runs and the fake path is harmless.
+def _cuda13_shim_dir() -> Path | None:
+    """Return the launcher-built CUDA 13 shim dir if it exists.
 
-    The fallback prints a warning naming the symptom. JIT-using paths
-    (FlashInfer attention, fp8 prefill kernel build) will fail loudly
-    later if the user ever needs them.
+    setup.py builds <REPO_ROOT>/cuda13_shim/bin/cudart64_13.dll (and
+    cousins) on cu13x wheel installs by copying from torch/lib. This
+    helper just locates that dir so cuda_env() can prefer it over the
+    system CUDA Toolkit when flashinfer needs cudart64_13.dll.
     """
+    cand = REPO_ROOT / "cuda13_shim"
+    if (cand / "bin" / "cudart64_13.dll").is_file():
+        return cand
+    return None
+
+
+def cuda_env() -> dict:
+    """Set CUDA_PATH / CUDA_LIB_PATH so flashinfer's import-time check passes.
+
+    flashinfer reads CUDA_HOME / CUDA_ROOT / CUDA_PATH / CUDA_LIB_PATH (in
+    that order), then loads ``<root>/bin/cudart64_<N>.dll`` where N is
+    derived from ``torch.version.cuda``. On a CUDA 13 torch (cu130 wheel,
+    Blackwell-supporting), N is "13" — and most Windows boxes only have
+    CUDA 12.x installed, so the import dies.
+
+    Resolution order:
+      1. If torch is cu13 and the launcher built a CUDA 13 shim (see
+         launcher/app/setup.py:_ensure_cuda13_shim), point CUDA_PATH at
+         the shim. This works without any system CUDA Toolkit installed.
+      2. Existing ``CUDA_LIB_PATH`` from the environment.
+      3. ``CUDA_PATH`` / ``CUDA_HOME`` from the environment, but only
+         when the matching cudart DLL is present at <path>/bin/.
+      4. Newest CUDA Toolkit under
+         ``C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\``.
+      5. Fallback: the embedded Python dir. The fake path satisfies
+         flashinfer's non-empty check; JIT paths will fail loudly later.
+    """
+    cuda_major = _torch_cuda_major()
+    expected_dll = f"cudart64_{cuda_major if cuda_major and cuda_major >= 12 else 12}.dll"
+
+    # Step 1: prefer the launcher's CUDA 13 shim when running cu13 torch.
+    if cuda_major and cuda_major >= 13:
+        shim = _cuda13_shim_dir()
+        if shim is not None:
+            return {
+                "CUDA_PATH": str(shim),
+                "CUDA_LIB_PATH": str(shim),
+            }
+
     if os.environ.get("CUDA_LIB_PATH"):
         _ensure_cudart_alias(os.environ["CUDA_LIB_PATH"])
         return {}
+
+    def _has_expected_dll(root: str | Path) -> bool:
+        return (Path(root) / "bin" / expected_dll).is_file()
+
     for var in ("CUDA_PATH", "CUDA_HOME"):
         val = os.environ.get(var)
-        if val and Path(val).is_dir():
+        if val and Path(val).is_dir() and _has_expected_dll(val):
             _ensure_cudart_alias(val)
             return {"CUDA_LIB_PATH": val}
     nvidia_root = Path(r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA")
@@ -403,19 +440,40 @@ def cuda_env() -> dict:
             key=lambda p: p.name,
             reverse=True,
         )
-        if versions:
-            _ensure_cudart_alias(versions[0])
-            return {"CUDA_LIB_PATH": str(versions[0])}
+        for v in versions:
+            if _has_expected_dll(v):
+                _ensure_cudart_alias(v)
+                return {"CUDA_LIB_PATH": str(v), "CUDA_PATH": str(v)}
     print(
-        "[warn] No CUDA Toolkit found (checked CUDA_PATH, CUDA_HOME, "
-        r"and C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\). "
+        f"[warn] No CUDA Toolkit found with {expected_dll} (checked CUDA_PATH, "
+        r"CUDA_HOME, and C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\). "
         "Setting CUDA_LIB_PATH to a placeholder so flashinfer's import "
         "check passes. Shipped snapshots use TRITON_ATTN so this is "
         "fine, but FlashInfer JIT paths (fp8 prefill kernel build) "
-        "will fail. Install CUDA Toolkit 12.x to fully clear this.",
+        "will fail. Install CUDA Toolkit to fully clear this.",
         file=sys.stderr,
     )
     return {"CUDA_LIB_PATH": str(REPO_ROOT / "python")}
+
+
+def random_dp_rpc_port() -> int:
+    """Return a random free TCP port for the data-parallel RPC handshake.
+
+    vLLM 0.20.0 hardcodes ``data_parallel_rpc_port=29550`` in its
+    ParallelConfig default. The parent binds it as ROUTER and engine-core
+    children connect. When a child is orphaned (parent crashes mid-init)
+    the port stays held until the orphan is killed, which makes back-to-
+    back snapshot launches deterministically fail with
+    ``ZMQError: Address in use (addr='tcp://127.0.0.1:29550')``.
+
+    Snapshots pass the result of this helper to vllm via
+    ``--data-parallel-rpc-port=<N>`` so each launch picks a fresh port and
+    leaks aren't load-bearing.
+    """
+    import socket as _s
+    with _s.socket(_s.AF_INET, _s.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
 
 
 def flashinfer_sampler_env(msvc_env_result: dict) -> dict:
