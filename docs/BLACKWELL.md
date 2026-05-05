@@ -48,7 +48,7 @@ End-to-end on a single RTX 5090 (driver 596.36, sm_120, 32 GB) on
 | `/v1/chat/completions`, `/v1/messages`, `/v1/responses` | yes |
 | Marlin sm_120 + AutoRound INT4 | works; Marlin selects `MarlinLinearKernel` for `GPTQMarlinLinearMethod` on first load. The `scalar_types.int4` Marlin sm_120 bug from older vLLM versions is **fixed** in 0.20.0. |
 | TP=1 + MTP n=6 | works |
-| Decode tok/s | **124.8 tok/s** on `rtx5090_speed` (ctx 120k, MTP n=6, mem_util 0.95, 39-token prompt, 300-token completion). vLLM boot log: `GPU KV cache size: 79,968 tokens, Maximum concurrency for 120,000 tokens per request: 2.00x` — 240k ctx is achievable at the same MTP n=6 if needed. |
+| Decode tok/s | **130.9 tok/s** on `rtx5090_speed` (ctx 120k, MTP n=6, mem_util 0.95, 39-token prompt, 300-token completion). 24k-prompt prefill ~2700 tok/s, sustained decode ~89 tok/s. KV pool 80k–95k tokens, max concurrency 2.0–2.4×. |
 | CUDA 13 toolkit on host | **not required**. The launcher copies torch's bundled `cudart64_13.dll`, `cublas64_13.dll`, etc. from `venv\Lib\site-packages\torch\lib\` into a writable `cuda13_shim\bin\` and points `CUDA_PATH` there so flashinfer's import-time `CDLL` succeeds. |
 
 ## What's NOT yet validated on Blackwell
@@ -84,11 +84,11 @@ fp8_e4m3, all with a randomised `--data-parallel-rpc-port` (see
 "RPC port leak" below) and **no** `VLLM_ATTENTION_BACKEND` env var
 (deprecated in 0.20.0; the CLI flag still works):
 
-| Snapshot         | ctx  | MTP n | mem_util | Decode (verified) | Use it when |
-|------------------|------|-------|----------|-------------------|-------------|
-| `rtx5090_speed`  | 120k | 6     | 0.95     | **124.8 tok/s**   | Default — 120k is enough for almost everything and you want max decode. |
-| `rtx5090`        | 200k | 6     | 0.93     | not benched       | Mid-balance: bigger ctx than `_speed`, MTP still on. |
-| `rtx5090_max`    | 280k | 3     | 0.95     | not benched       | Largest single-card context. Lower MTP n trades acceptance rate for headroom. |
+| Snapshot         | ctx  | MTP n | mem_util | Short decode | 24k decode | 24k prefill | Use it when |
+|------------------|------|-------|----------|--------------|------------|-------------|-------------|
+| `rtx5090_speed`  | 120k | 6     | 0.95     | **130.9 tok/s** | ~89 tok/s  | ~2700 tok/s | Default — 120k is enough for almost everything and you want max decode and 2× KV concurrency for batching. |
+| `rtx5090`        | 240k | 6     | 0.95     | 124.9 tok/s     | 89.3 tok/s | 2796 tok/s  | Balanced: bigger ctx than `_speed`, MTP n=6 still on. v1.2.1 upgrade replaces the v1.2.0 200k/0.93 build. |
+| `rtx5090_max`    | 280k | 3     | 0.95     | **138.0 tok/s** | 81.0 tok/s | 2818 tok/s  | Largest single-card context. n=3 frees KV-pool budget so 280k still fits with MTP on. Edges out n=6 on short prompts. |
 
 All three beat every 3090 snapshot on context size at the same MTP n.
 

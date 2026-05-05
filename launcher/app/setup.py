@@ -348,6 +348,25 @@ def _install_wheel(wheel: Path) -> None:
     print("  Total download is multiple GB (torch + CUDA wheels + Python deps).")
     print("  Expect 5–15 minutes on a fast connection. Progress prints below.")
     print()
+
+    # Embedded Python 3.12 ships pip via get-pip.py, but NOT setuptools or
+    # wheel. The Blackwell wheel pulls fastsafetensors from a SystemPanic
+    # source tarball whose setup.py imports pybind11 at module load. Pip's
+    # build-isolation env install of pybind11 isn't always picked up on
+    # embedded Python, so pre-install these into the user env where the
+    # final fallback search succeeds.
+    print("  Pre-installing build helpers (setuptools, wheel, pybind11) ...")
+    bootstrap_cmd = [
+        sys.executable, "-m", "pip", "install",
+        "--no-warn-script-location",
+        "--upgrade",
+        "setuptools", "wheel", "pybind11",
+    ]
+    r = subprocess.run(bootstrap_cmd, capture_output=False)
+    if r.returncode != 0:
+        raise RuntimeError(f"build-helper install failed (exit {r.returncode})")
+    print()
+
     cmd = [
         sys.executable, "-m", "pip", "install",
         "--extra-index-url", torch_index,

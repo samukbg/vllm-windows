@@ -288,8 +288,45 @@ windows:
       power_cap_w: 250
       notes: Original 250W baseline. ~50 tok/s on 24k prompt; 72.5 on short prompts.
 
+    - id: rtx5090_speed
+      tagline: 5090 speed-king (peak decode)
+      tier: active
+      status: recommended
+      bat: '${SNAPSHOTS_DIR}\start_5090_speed.bat'
+      py:  '${SNAPSHOTS_DIR}\start_5090_speed.py'
+      gpu: GPU0
+      tp: 1
+      pp: 1
+      mem_util: 0.95
+      mtp_n: 6
+      ctx: 120000
+      port: 5001
+      decode_tps: 130.9
+      decode_tps_long: 89
+      prefill_tps_cold: 2700
+      requires_wheel: 'vllm-0.20.0+cu132.devnen'
+      vllm_version: 0.20.0+cu132.devnen.1
+      notes: |
+        Speed-focused single-card RTX 5090 snapshot.
+        ctx 120k + MTP n=6 + mem_util 0.95.
+
+        Verified on RTX 5090 + driver 596.36:
+          - short-prompt decode  : 130.9 tok/s
+          - 24k-prompt decode    : ~89  tok/s (warm)
+          - 24k-prompt prefill   : ~2700 tok/s
+          - GPU KV cache size    : 79,968-94,656 tokens
+          - max concurrency @ ctx: 2.0-2.4x (good for batched workloads)
+
+        Beats the 3090 start_speed config on both context (120k vs 90k)
+        and decode rate (5090 has ~1.8x the memory bandwidth of a 3090
+        and gets the FP8/Marlin-on-Blackwell win).
+
+        Requires the Blackwell zip
+        (qwen3.6-windows-server-portable-x64-blackwell.zip).
+        Driver 596+ required.
+
     - id: rtx5090
-      tagline: Blackwell RTX 5090 single-card
+      tagline: 5090 balanced (240k ctx)
       tier: active
       status: recommended
       bat: '${SNAPSHOTS_DIR}\start_5090.bat'
@@ -297,30 +334,71 @@ windows:
       gpu: GPU0
       tp: 1
       pp: 1
-      mem_util: 0.93
+      mem_util: 0.95
       mtp_n: 6
-      ctx: 200000
+      ctx: 240000
       port: 5001
-      decode_tps: 36.0
-      prefill_tps_cold: null
+      decode_tps: 124.9
+      decode_tps_long: 89.3
+      prefill_tps_cold: 2796
       requires_wheel: 'vllm-0.20.0+cu132.devnen'
+      vllm_version: 0.20.0+cu132.devnen.1
       notes: |
-        Single-card RTX 5090 (Blackwell, sm_120, 32 GB).
-        Requires the qwen3.6-windows-server-portable-x64-blackwell.zip
-        release (cu130 torch + vLLM 0.20.0+cu132.devnen.1 wheel + CUDA 13
-        runtime shim auto-built on first boot). Driver 596+ required.
+        Balanced single-card RTX 5090 snapshot.
+        ctx 240k + MTP n=6 + mem_util 0.95.
 
-        ctx 200k chosen conservatively — 32 GB allows higher; the headroom
-        also covers async scheduling overhead which is on by default in
-        0.20.0. mem_util 0.93 leaves room for cudagraph capture.
+        Verified on RTX 5090 + driver 596.36:
+          - short-prompt decode  : 124.9 tok/s
+          - 24k-prompt decode    : 89.3 tok/s
+          - 24k-prompt prefill   : 2796 tok/s
+          - GPU KV cache size    : 79,968 tokens
+          - max concurrency @ ctx: 1.14x
 
-        VLLM_ATTENTION_BACKEND env var was removed in 0.20.0; this snapshot
-        passes --attention-backend on the CLI instead. The launcher also
-        passes a randomised --data-parallel-rpc-port to dodge vLLM 0.20.0's
-        hardcoded 29550 leak across orphaned engine cores.
+        Strict upgrade over the v1.2.0 200k/0.93 build: same decode
+        rate, +40k ctx, slightly bigger KV pool. MTP still on, full
+        single-card.
 
-        Initial decode benchmark: ~36 tok/s eager mode + reasoning.
-        Re-bench after MTP and async scheduling tuning are dialed in.
+        Requires the Blackwell zip. Driver 596+ required.
+
+    - id: rtx5090_max
+      tagline: 5090 max-ctx (280k single card)
+      tier: active
+      status: recommended
+      bat: '${SNAPSHOTS_DIR}\start_5090_max.bat'
+      py:  '${SNAPSHOTS_DIR}\start_5090_max.py'
+      gpu: GPU0
+      tp: 1
+      pp: 1
+      mem_util: 0.95
+      mtp_n: 3
+      ctx: 280000
+      port: 5001
+      decode_tps: 138.0
+      decode_tps_long: 81.0
+      prefill_tps_cold: 2818
+      requires_wheel: 'vllm-0.20.0+cu132.devnen'
+      vllm_version: 0.20.0+cu132.devnen.1
+      notes: |
+        Max-context single-card RTX 5090 snapshot.
+        ctx 280k + MTP n=3 + mem_util 0.95.
+
+        Verified on RTX 5090 + driver 596.36:
+          - short-prompt decode  : 138.0 tok/s (highest of any 5090 config)
+          - 24k-prompt decode    : 81.0 tok/s (slightly lower than n=6 long)
+          - 24k-prompt prefill   : 2818 tok/s
+          - GPU KV cache size    : 78,400 tokens
+          - max concurrency @ ctx: 1.05x (right at the edge)
+
+        n=3 frees KV-pool budget that n=6 spends on draft sequences,
+        which is what gets us to 280k on a single 32 GB card with MTP
+        still on. Pick this when you need to feed an entire codebase.
+        On short prompts the lower-n MTP actually edges out n=6.
+
+        If 280k OOMs at boot, vLLM will print the safe ceiling — open
+        the snapshot editor (press `e`) and lower CTX to just under
+        the printed value.
+
+        Requires the Blackwell zip. Driver 596+ required.
 
     - id: draft
       tagline: BLOCKED — no vocab=248320 drafter

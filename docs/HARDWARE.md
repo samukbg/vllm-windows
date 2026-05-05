@@ -12,7 +12,7 @@ Skim this first, prose follows.
 | RTX 3080, A40, A6000, A5000, A100 | Ampere / sm_86 / sm_80 | default zip | 🟡 should work, untested | Same code path as 3090. Please post numbers. |
 | RTX 4090, 4080, 4070 Ti Super | Ada / sm_89 | default zip | 🟡 should work, untested | Same code path as 3090; expect higher numbers. |
 | RTX 4060 Ti 16 GB, 4070 12 GB | Ada / sm_89 | default zip | 🟡 tight on VRAM | 27B INT4 weights are 16.96 GiB; needs boot-quiet + small ctx, or step down to Qwen3-14B. |
-| RTX 5090 | Blackwell / sm_120 | **`-blackwell` zip** | ✅ tested | **124.8 tok/s** on `rtx5090_speed` (ctx 120k, MTP n=6). See [`BLACKWELL.md`](BLACKWELL.md). |
+| RTX 5090 | Blackwell / sm_120 | **`-blackwell` zip** | ✅ tested | **130.9 tok/s** on `rtx5090_speed` (ctx 120k), 138.0 tok/s on `rtx5090_max` (280k ctx, MTP n=3). See [`BLACKWELL.md`](BLACKWELL.md). |
 | RTX 5070, 5080, 5060 | Blackwell / sm_120 | **`-blackwell` zip** | 🟡 should work, untested | Same wheel, same snapshots. 5060 (8 GB) won't fit 27B; use a smaller model. |
 | GTX 1080 Ti, 1080, GT 1030 | Pascal / sm_61 | none | ❌ won't work | No BF16 in hardware; Marlin INT4 needs sm_80+. Use llama.cpp. |
 | RTX 2080 Ti, 2070 Super | Turing / sm_75 | none | ❌ won't work | Marlin INT4 needs sm_80+. Use llama.cpp. |
@@ -57,11 +57,13 @@ Verified end-to-end on a single RTX 5090 (driver 596.36, sm_120) on
 
 - Lorbus AutoRound INT4 27B loads in ~17 s and serves on
   `/v1/chat/completions`, `/v1/messages`, `/v1/responses`.
-- Decode at **124.8 tok/s** on `rtx5090_speed` (ctx 120k, MTP n=6,
-  mem_util 0.95, 39-token prompt, 300-token completion). vLLM boot log
-  on the same config: `GPU KV cache size: 79,968 tokens, Maximum
-  concurrency for 120,000 tokens per request: 2.00x`, so 240k ctx is
-  achievable at the same MTP n=6 if needed.
+- Decode at **130.9 tok/s** on `rtx5090_speed` (ctx 120k, MTP n=6,
+  mem_util 0.95, 39-token prompt, 300-token completion). 24k-prompt
+  prefill ~2700 tok/s, sustained decode ~89 tok/s. KV pool 80k–95k
+  tokens, max concurrency 2.0–2.4×.
+- The `rtx5090_max` config (ctx 280k, MTP n=3, mem_util 0.95) edges
+  out `_speed` on short-prompt decode at **138.0 tok/s** while still
+  fitting on a single 32 GB card with MTP on.
 - **Marlin sm_120 + AutoRound INT4 works.** The
   `scalar_types.int4` bug previously reported on older vLLM versions is
   resolved in 0.20.0; no AWQ repackaging needed. Marlin selects
@@ -75,11 +77,11 @@ Verified end-to-end on a single RTX 5090 (driver 596.36, sm_120) on
 
 The Blackwell zip ships three single-card 5090 snapshots:
 
-| Snapshot         | ctx  | MTP n | mem_util | Decode (verified) |
-|------------------|------|-------|----------|-------------------|
-| `rtx5090_speed`  | 120k | 6     | 0.95     | **124.8 tok/s**   |
-| `rtx5090`        | 200k | 6     | 0.93     | not benched       |
-| `rtx5090_max`    | 280k | 3     | 0.95     | not benched       |
+| Snapshot         | ctx  | MTP n | mem_util | Short decode | 24k decode | 24k prefill |
+|------------------|------|-------|----------|--------------|------------|-------------|
+| `rtx5090_speed`  | 120k | 6     | 0.95     | **130.9 tok/s** | ~89 tok/s  | ~2700 tok/s |
+| `rtx5090`        | 240k | 6     | 0.95     | 124.9 tok/s     | 89.3 tok/s | 2796 tok/s  |
+| `rtx5090_max`    | 280k | 3     | 0.95     | **138.0 tok/s** | 81.0 tok/s | 2818 tok/s  |
 
 All three beat every 3090 snapshot on context size at the same MTP n.
 vLLM 0.20.0 hardcodes `data_parallel_rpc_port=29550` which leaks

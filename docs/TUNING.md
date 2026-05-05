@@ -16,13 +16,28 @@ KV, FlashInfer, and a few Genesis patches are unavailable. What remains:
    on a representative prompt for a new workload, don't trust a single
    fixed number.
 
-   On RTX 5090 (Blackwell zip, vLLM 0.20.0+cu132.devnen.1) the same
-   MTP n=6 setting at ctx 120k delivers **124.8 tok/s** on
-   `rtx5090_speed` (39-token prompt, 300-token completion, mem_util
-   0.95). The Blackwell-specific n sweep across n=3..n=8 is still
-   TBD; the n=6 value is carried over from the 3090 tune. The 5090
-   has more memory bandwidth and a different cudagraph profile so
-   the optimum may shift — re-sweep before posting numbers.
+   On RTX 5090 (Blackwell zip, vLLM 0.20.0+cu132.devnen.1) the picture
+   shifts:
+
+   ```
+   ctx 120k MTP n=6 (rtx5090_speed) -> short 130.9 / 24k decode ~89 tok/s
+   ctx 240k MTP n=6 (rtx5090)       -> short 124.9 / 24k decode  89.3 tok/s
+   ctx 280k MTP n=3 (rtx5090_max)   -> short 138.0 / 24k decode  81.0 tok/s
+   ```
+
+   **Two surprises** on Blackwell that don't show on Ampere:
+
+   - On **short prompts**, MTP n=3 actually edges out n=6 (138.0 vs
+     130.9) because the 5090's higher memory bandwidth makes wasted
+     draft tokens cheaper than the cudagraph-replay overhead n=6 adds.
+     n=6 still wins on long prompts (89.3 vs 81.0), so n=6 remains
+     the default for the balanced and speed configs.
+   - **Bigger ctx does NOT slow decode at fixed MTP** the way it does
+     on Ampere — going 120k → 240k at MTP n=6 costs 5–6 short-prompt
+     tok/s but is *equal* on long-prompt decode. The Blackwell KV-pool
+     attention bandwidth has more headroom than Ampere's. We have not
+     yet swept n=4 / n=5 / n=7 on the 5090; conventional wisdom from
+     the 3090 sweep suggests n=6 is still the long-prompt peak.
 
 2. **Power cap.** 250 W → 350 W: prefill +16 %, decode unchanged (decode
    is memory-bandwidth-bound at batch=1 / max-num-seqs=1). If you want

@@ -1,19 +1,11 @@
-"""Launch vLLM serving Qwen3.6-27B (Lorbus AutoRound INT4) on a single RTX 5090.
+"""Max-context RTX 5090 snapshot for Qwen3.6-27B (Lorbus AutoRound INT4).
 
-Blackwell-tuned counterpart to start_speed.py. Differences from the 3090
-snapshot:
+ctx 280k + MTP n=3 + mem_util 0.95 — largest single-card context this
+launcher ships, more than 2x the 3090 start_127k config and bigger than
+the 2x-3090 start_pp2_160k config, on a single card with MTP still on.
+Pick this when feeding large codebases.
 
-  - Built against vLLM 0.20.0+cu132.devnen.1 (CUDA 13, sm_120 kernels).
-  - VLLM_ATTENTION_BACKEND env var is no longer read in 0.20.0; only
-    the --attention-backend CLI arg is honored. Setting the env var
-    triggers a "Unknown vLLM environment variable" warning.
-  - 32 GB VRAM gives ~13 GB of KV-cache headroom after weights, so
-    ctx default jumps from 90k (3090) to 200k.
-  - GPU pin defaults to "0" since most 5090 boxes ship single-card.
-
-The 3090 snapshots in this folder remain unchanged. Pick the right
-snapshot for your card from the launcher dashboard, or via
-``configs.yaml -> blackwell`` when running on a 5090-class GPU.
+Built against vLLM 0.20.0+cu132.devnen.1 (CUDA 13, sm_120 kernels).
 """
 from __future__ import annotations
 
@@ -40,13 +32,14 @@ PORT = 5001
 TP = 1
 PP = 1
 USE_MTP = True
-NUM_SPEC_TOKENS = 6
+NUM_SPEC_TOKENS = 3
 
 # ---- Memory + context -------------------------------------------------------
-# 5090: 32 GB VRAM. Weights 16.96 GB, leaves 13.5 GB after profile/activations.
-# Verified: ctx 240k + mem_util 0.95 boots with KV pool 79,968 tokens at 1.14x
-# concurrency. Same decode rate as 200k (89 tok/s on 24k prompt) with +40k ctx.
-CTX = 240000
+# Max-ctx: MTP n=3 keeps spec-decode on but frees KV-pool budget that
+# n=6 spends on draft sequences. Combined with mem_util 0.95 this targets
+# 280k ctx single-card. If the boot OOMs, vLLM prints the safe ceiling
+# in its ValueError and you can edit CTX to just under that.
+CTX = 280000
 GPU_MEM_UTIL = 0.95
 KV_CACHE_DTYPE = "fp8_e4m3"  # TRITON_ATTN only accepts fp8_e4m3 on Windows.
 MAX_NUM_BATCHED_TOKENS = 4128
