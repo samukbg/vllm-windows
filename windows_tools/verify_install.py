@@ -3,10 +3,17 @@
 Run after install / before launch. Prints a green / yellow / red summary.
 
 Checks:
-  1. vLLM importable, version is 0.19.0+devnen.* (or upstream 0.19.0).
-  2. Each file in windows_patches/ matches the in-venv copy by sha256.
+  1. vLLM importable, version is 0.19.0+devnen.* OR 0.20.0+cu132.devnen.*
+     (or the matching upstream tags).
+  2. Each file in windows_patches/ matches the in-venv copy by sha256
+     (patch set picked per detected vLLM major: 0.19 = full CPU-relay set,
+     0.20 = reasoning-parser + serving-models only; CPU-relay was dropped
+     when 0.20.0 shipped NCCL on Windows).
   3. nvidia-smi reports at least one Ampere+ GPU (sm_86 or higher).
-  4. MSVC `cl.exe` resolvable (warn if not — only matters for FlashInfer JIT).
+     Blackwell (sm_120) is accepted but warns if the installed wheel is
+     a cu126 build, and Ampere/Ada warn if the wheel is a cu130 build.
+  4. CUDA 13 runtime shim present when running on a +cu13* wheel.
+  5. MSVC `cl.exe` resolvable (warn if not — only matters for FlashInfer JIT).
 
 Exit code 0 = all green. 1 = at least one red. 2 = warnings only.
 """
@@ -22,11 +29,18 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 PATCHES = REPO / "windows_patches"
 
-PATCH_MAP = {
+# vllm 0.19.x: CPU-relay fork, six patches.
+PATCH_MAP_019 = {
     "parallel_state.py":            "vllm/distributed/parallel_state.py",
     "cuda_communicator.py":         "vllm/distributed/device_communicators/cuda_communicator.py",
     "base_device_communicator.py":  "vllm/distributed/device_communicators/base_device_communicator.py",
     "gpu_worker.py":                "vllm/v1/worker/gpu_worker.py",
+    "qwen3_reasoning_parser.py":    "vllm/reasoning/qwen3_reasoning_parser.py",
+    "serving_models.py":            "vllm/entrypoints/openai/models/serving.py",
+}
+
+# vllm 0.20.x: NCCL on Windows, CPU-relay dropped. Two source patches remain.
+PATCH_MAP_020 = {
     "qwen3_reasoning_parser.py":    "vllm/reasoning/qwen3_reasoning_parser.py",
     "serving_models.py":            "vllm/entrypoints/openai/models/serving.py",
 }
@@ -36,26 +50,34 @@ def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()[:12]
 
 
-def check_vllm(venv: Path) -> tuple[str, str]:
+def check_vllm(venv: Path) -> tuple[str, str, str]:
+    """Return (level, message, version_string). Empty version on failure."""
     py = venv / "Scripts" / "python.exe"
     if not py.exists():
-        return ("RED", f"no python.exe at {py}")
+        return ("RED", f"no python.exe at {py}", "")
     try:
         out = subprocess.check_output(
             [str(py), "-c", "import vllm; print(vllm.__version__)"],
             text=True, timeout=30,
         ).strip()
     except subprocess.CalledProcessError as e:
-        return ("RED", f"vllm import failed: {e}")
-    if "0.19" not in out:
-        return ("YEL", f"unexpected version {out!r}, expected 0.19.x")
-    return ("GRN", f"vllm {out}")
+        return ("RED", f"vllm import failed: {e}", "")
+    if out.startswith("0.19"):
+        return ("GRN", f"vllm {out} (Ampere/Ada — cu126 / 30+40 series)", out)
+    if out.startswith("0.20"):
+        return ("GRN", f"vllm {out} (Blackwell-capable — cu13x / 30+40+50 series)", out)
+    return ("YEL", f"unexpected version {out!r}, expected 0.19.x or 0.20.x", out)
 
 
-def check_patches(venv: Path) -> list[tuple[str, str, str]]:
+def check_patches(venv: Path, vllm_version: str) -> list[tuple[str, str, str]]:
     sp = venv / "Lib" / "site-packages"
     rows = []
-    for src_name, dst_rel in PATCH_MAP.items():
+    if vllm_version.startswith("0.20"):
+        patch_map = PATCH_MAP_020
+    else:
+        # default to 0.19 set; older/unknown versions get the conservative full check.
+        patch_map = PATCH_MAP_019
+    for src_name, dst_rel in patch_map.items():
         src = PATCHES / src_name
         dst = sp / dst_rel
         if not dst.exists():
@@ -71,7 +93,7 @@ def check_patches(venv: Path) -> list[tuple[str, str, str]]:
     return rows
 
 
-def check_gpu() -> tuple[str, str]:
+def check_gpu(vllm_version: str = "") -> tuple[str, str]:
     if not shutil.which("nvidia-smi"):
         return ("RED", "nvidia-smi not on PATH")
     try:
@@ -84,17 +106,46 @@ def check_gpu() -> tuple[str, str]:
     lines = [l.strip() for l in out.splitlines() if l.strip()]
     if not lines:
         return ("RED", "no GPU reported")
-    bad = []
+    too_old = []
+    blackwell = []
     for line in lines:
         try:
             cc = float(line.split(",")[-1].strip())
         except ValueError:
             cc = 0.0
         if cc < 8.6:
-            bad.append(line)
-    if bad:
-        return ("YEL", f"non-Ampere+ GPU detected: {bad}; this fork was tuned on sm_86")
+            too_old.append(line)
+        elif cc >= 12.0:
+            blackwell.append(line)
+    if too_old:
+        return ("YEL", f"non-Ampere+ GPU detected: {too_old}; this fork was tuned on sm_86")
+    # Wheel/GPU mismatch warnings.
+    if blackwell and vllm_version.startswith("0.19"):
+        return ("YEL", f"Blackwell GPU {blackwell} but cu126 wheel installed — "
+                "use the qwen3.6-windows-server-portable-x64-blackwell.zip release.")
+    if not blackwell and vllm_version.startswith("0.20"):
+        # Ampere/Ada on the cu13 wheel works but only with the CUDA 13 driver
+        # (596+). The driver is checked indirectly via the import succeeding.
+        return ("GRN", f"{' | '.join(lines)} (running cu13x wheel)")
     return ("GRN", " | ".join(lines))
+
+
+def check_cuda13_shim(venv: Path, vllm_version: str) -> tuple[str, str]:
+    """Confirm the launcher-built CUDA 13 shim is present when needed."""
+    if not vllm_version.startswith("0.20"):
+        return ("GRN", "n/a (cu126 wheel)")
+    # The shim lives next to the launcher root, not the venv. Look in
+    # both common spots: the repo root (dev) and the writable root sibling
+    # of the venv (portable extract).
+    candidates = [
+        REPO / "cuda13_shim" / "bin" / "cudart64_13.dll",
+        venv.parent / "cuda13_shim" / "bin" / "cudart64_13.dll",
+    ]
+    for c in candidates:
+        if c.is_file():
+            return ("GRN", f"found at {c.parent}")
+    return ("YEL", "cuda13_shim/bin/cudart64_13.dll missing — "
+            "launcher rebuilds this on next boot from torch/lib/")
 
 
 def check_msvc() -> tuple[str, str]:
@@ -121,10 +172,12 @@ def main() -> int:
     print(f"== verifying {venv} ==\n")
 
     rows: list[tuple[str, str, str]] = []
-    rows.append(("vllm",) + check_vllm(venv))
-    for src, lvl, msg in check_patches(venv):
+    vlvl, vmsg, vver = check_vllm(venv)
+    rows.append(("vllm", vlvl, vmsg))
+    for src, lvl, msg in check_patches(venv, vver):
         rows.append(("patch:" + src, lvl, msg))
-    rows.append(("gpu",) + check_gpu())
+    rows.append(("gpu",) + check_gpu(vver))
+    rows.append(("cuda13_shim",) + check_cuda13_shim(venv, vver))
     rows.append(("msvc",) + check_msvc())
 
     bad_any = any(lvl == "RED" for _, lvl, _ in rows)

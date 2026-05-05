@@ -288,6 +288,40 @@ windows:
       power_cap_w: 250
       notes: Original 250W baseline. ~50 tok/s on 24k prompt; 72.5 on short prompts.
 
+    - id: rtx5090
+      tagline: Blackwell RTX 5090 single-card
+      tier: active
+      status: recommended
+      bat: '${SNAPSHOTS_DIR}\start_5090.bat'
+      py:  '${SNAPSHOTS_DIR}\start_5090.py'
+      gpu: GPU0
+      tp: 1
+      pp: 1
+      mem_util: 0.93
+      mtp_n: 6
+      ctx: 200000
+      port: 5001
+      decode_tps: 36.0
+      prefill_tps_cold: null
+      requires_wheel: 'vllm-0.20.0+cu132.devnen'
+      notes: |
+        Single-card RTX 5090 (Blackwell, sm_120, 32 GB).
+        Requires the qwen3.6-windows-server-portable-x64-blackwell.zip
+        release (cu130 torch + vLLM 0.20.0+cu132.devnen.1 wheel + CUDA 13
+        runtime shim auto-built on first boot). Driver 596+ required.
+
+        ctx 200k chosen conservatively — 32 GB allows higher; the headroom
+        also covers async scheduling overhead which is on by default in
+        0.20.0. mem_util 0.93 leaves room for cudagraph capture.
+
+        VLLM_ATTENTION_BACKEND env var was removed in 0.20.0; this snapshot
+        passes --attention-backend on the CLI instead. The launcher also
+        passes a randomised --data-parallel-rpc-port to dodge vLLM 0.20.0's
+        hardcoded 29550 leak across orphaned engine cores.
+
+        Initial decode benchmark: ~36 tok/s eager mode + reasoning.
+        Re-bench after MTP and async scheduling tuning are dialed in.
+
     - id: draft
       tagline: BLOCKED — no vocab=248320 drafter
       tier: blocked
@@ -327,6 +361,9 @@ windows:
     - { combo: 'PP=2 + ngram',         status: warn,    note: 'Boots, asserts on first request' }
     - { combo: 'PP=2 + no spec-decode', status: ok,     note: 'pp2_160k path' }
     - { combo: 'TP=2 (any)',           status: warn,    note: '~7.5 tok/s, unusable' }
+    - { combo: 'Blackwell sm_120 + Marlin AutoRound INT4', status: ok, note: 'Verified on RTX 5090 / vLLM 0.20.0+cu132.devnen.1' }
+    - { combo: 'Blackwell + cu126 wheel',  status: blocked, note: 'cudaErrorNoKernelImageForDevice — use blackwell zip' }
+    - { combo: 'Ampere/Ada + cu130 wheel', status: warn,    note: 'Boots if driver >=596 installed; not the recommended path' }
 
 
 # Linux section intentionally omitted from this public release.

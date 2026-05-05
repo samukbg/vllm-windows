@@ -17,6 +17,19 @@ How to verify CLI flags:
 .\venv\Scripts\vllm.exe serve --help | Select-String <fragment>
 ```
 
+## Note on Blackwell zip (vLLM 0.20.0+cu132.devnen.1)
+
+The Blackwell zip ships vLLM 0.20.0, not 0.19.0. Most of the
+"confirmed-fictional" flags below are still fictional or wrong-named on
+0.20.0. The notable behavior change is **`VLLM_ATTENTION_BACKEND` is now
+genuinely unrecognised**: 0.19.0 silently ignored it, but 0.20.0 emits
+`Unknown vLLM environment variable: VLLM_ATTENTION_BACKEND` to the log.
+The CLI form `--attention-backend=TRITON_ATTN` is still the right
+answer either way. Asynchronous scheduling is on by default in 0.20.0
+(it was opt-in on 0.19.0), so any recipe that asks you to set
+`VLLM_USE_V1_SCHEDULER` or similar to enable it is talking about 0.19
+and is now a no-op.
+
 ## Confirmed-fictional / wrong-version on the 0.19.0 wheel
 
 | Flag / env var | What you'll find online | Reality on this wheel |

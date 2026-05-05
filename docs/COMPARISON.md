@@ -58,10 +58,17 @@ Three reasons, all stack-level not config-level:
 - **You have a Pascal or Turing card.** Marlin INT4 needs sm_80+,
   Pascal has no BF16 in hardware, vLLM is a hard no on those. llama.cpp
   works, just slower.
-- **You have RTX 50-series.** This project's wheel cannot run on
-  Blackwell yet (CUDA 12.6 / cu126 torch, no sm_120 kernels). Either
-  use llama.cpp / Ollama in the meantime, or follow
-  [jaMMint's WSL2 vllm-blackwell-guide](https://github.com/lastloop-ai/vllm-blackwell-guide).
+- **You have RTX 50-series and want llama.cpp / Ollama instead.** This
+  project now ships a Blackwell-capable build
+  (`qwen3.6-windows-server-portable-x64-blackwell.zip`, vLLM
+  0.20.0+cu132.devnen.1 against cu130 torch) and AutoRound INT4 + Marlin
+  is verified working on sm_120, so this column is no longer "must
+  switch tools" — pick llama.cpp / Ollama if you prefer their UX or
+  need partial-RAM offload, but vLLM is no longer Windows-blocked on
+  Blackwell. WSL2 +
+  [jaMMint's vllm-blackwell-guide](https://github.com/lastloop-ai/vllm-blackwell-guide)
+  remains a valid alternative if you want pure-upstream vLLM with NVFP4
+  or other Linux-only features.
 - **You want a polished GUI.** LM Studio is good. This project ships
   a terminal TUI; you pick a snapshot and that is it.
 - **You have an AMD card.** ROCm vLLM does not ship in this Windows
@@ -82,8 +89,9 @@ WSL 2.7.3 closes some of that gap (115 vs 160), not all.
 
 Pick WSL2 / Docker when:
 
-- You have an RTX 50-series card and need Blackwell support today
-  (this project does not have it yet).
+- You need an upstream vLLM feature that didn't make it into the
+  Blackwell zip's 0.20.0 base (NVFP4, MXFP4, ROCm, latest Linux-only
+  optimisations).
 - You need an upstream vLLM feature that is not in the
   `0.19.0+devnen.1` wheel, like NVFP4, ROCm, or specific Linux-only
   patches.
@@ -106,8 +114,10 @@ working NVIDIA GPU and do not want to dual-boot just to run a model.
 
 ## When this project is the right answer
 
-- You are on Windows 10 or 11 with a 3090 / 4090 / A6000 (Ampere or
-  Ada). Blackwell support is pending; see [`HARDWARE.md`](HARDWARE.md).
+- You are on Windows 10 or 11 with an Ampere / Ada / Blackwell card
+  (3090 / 4090 / A6000 / 5070 / 5080 / 5090). Pick the default zip for
+  30/40-series, or the `-blackwell` zip for 50-series; see
+  [`HARDWARE.md`](HARDWARE.md) and [`INSTALL.md`](INSTALL.md).
 - You want OpenAI-compatible AND Anthropic-compatible endpoints out of
   the box for Claude Code, Cline, Cursor, Codex CLI, OpenCode,
   KiloCode, etc.

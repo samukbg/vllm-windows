@@ -57,7 +57,7 @@ jobs:
           fi
           echo "release_tag=$REL" >> "$GITHUB_OUTPUT"
 
-      - name: Resolve wheel URL
+      - name: Resolve wheel URLs (Ampere + Blackwell)
         id: wheel
         shell: bash
         env:
@@ -65,50 +65,68 @@ jobs:
         run: |
           set -euo pipefail
           override='${{ inputs.wheel_url }}'
+          # Pull every .whl asset from devnen/vllm-windows latest release;
+          # split into the cu126 (0.19.x → Ampere/Ada) and cu13x (0.20.x →
+          # Blackwell) variants by local-version tag in the filename.
           if [ -n "$override" ]; then
-            URL="$override"
-            # Best-effort name guess from the URL; build_launcher_zip.py
-            # falls back to legacy "vllm.whl" if the name isn't PEP 427.
-            NAME=$(basename "${URL%%\?*}")
+            URL_AMPERE="$override"
+            NAME_AMPERE=$(basename "${URL_AMPERE%%\?*}")
+            URL_BLACKWELL=""
+            NAME_BLACKWELL=""
           else
-            URL=$(gh release view --repo devnen/vllm-windows --json assets \
-                  -q '.assets[] | select(.name | endswith(".whl")) | .url' \
-                  | head -n1)
-            NAME=$(gh release view --repo devnen/vllm-windows --json assets \
-                  -q '.assets[] | select(.name | endswith(".whl")) | .name' \
-                  | head -n1)
+            ASSETS_JSON=$(gh release view --repo devnen/vllm-windows --json assets)
+            # Ampere/Ada: 0.19.x wheel, no +cu13 tag.
+            URL_AMPERE=$(echo "$ASSETS_JSON" | jq -r '.assets[] | select(.name|endswith(".whl")) | select(.name|test("\\+cu13")|not) | .url' | head -n1)
+            NAME_AMPERE=$(echo "$ASSETS_JSON" | jq -r '.assets[] | select(.name|endswith(".whl")) | select(.name|test("\\+cu13")|not) | .name' | head -n1)
+            # Blackwell: 0.20.x wheel with +cu13 tag.
+            URL_BLACKWELL=$(echo "$ASSETS_JSON" | jq -r '.assets[] | select(.name|endswith(".whl")) | select(.name|test("\\+cu13")) | .url' | head -n1)
+            NAME_BLACKWELL=$(echo "$ASSETS_JSON" | jq -r '.assets[] | select(.name|endswith(".whl")) | select(.name|test("\\+cu13")) | .name' | head -n1)
           fi
-          if [ -z "$URL" ]; then
-            echo "::error::No wheel URL resolved. Set inputs.wheel_url or ensure devnen/vllm-windows has a .whl asset on its latest release."
+          if [ -z "$URL_AMPERE" ] && [ -z "$URL_BLACKWELL" ]; then
+            echo "::error::No wheels resolved from devnen/vllm-windows."
             exit 1
           fi
-          if [ -z "$NAME" ]; then NAME="vllm.whl"; fi
-          echo "url=$URL"   >> "$GITHUB_OUTPUT"
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          echo "Using wheel: $NAME ($URL)"
+          echo "url_ampere=$URL_AMPERE"       >> "$GITHUB_OUTPUT"
+          echo "name_ampere=$NAME_AMPERE"     >> "$GITHUB_OUTPUT"
+          echo "url_blackwell=$URL_BLACKWELL" >> "$GITHUB_OUTPUT"
+          echo "name_blackwell=$NAME_BLACKWELL" >> "$GITHUB_OUTPUT"
+          echo "Ampere wheel:    ${NAME_AMPERE:-<none>}"
+          echo "Blackwell wheel: ${NAME_BLACKWELL:-<none>}"
 
-      - name: Download wheel
+      - name: Download wheels
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.WHEEL_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          URL='${{ steps.wheel.outputs.url }}'
-          NAME='${{ steps.wheel.outputs.name }}'
-          # Preserve the wheel's real PEP 427 filename so build_launcher_zip.py
-          # can ship it under that name and the launcher's setup.py can skip
-          # the rename-at-install-time dance.
-          if [[ "$URL" == https://api.github.com/* ]]; then
-            gh api "$URL" -H "Accept: application/octet-stream" > "$NAME"
-          else
-            curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/octet-stream" "$URL" -o "$NAME"
-          fi
-          ls -lh "$NAME"
+          fetch() {
+            local url="$1" name="$2"
+            [ -z "$url" ] && return 0
+            if [[ "$url" == https://api.github.com/* ]]; then
+              gh api "$url" -H "Accept: application/octet-stream" > "$name"
+            else
+              curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/octet-stream" "$url" -o "$name"
+            fi
+            ls -lh "$name"
+          }
+          fetch '${{ steps.wheel.outputs.url_ampere }}'    '${{ steps.wheel.outputs.name_ampere }}'
+          fetch '${{ steps.wheel.outputs.url_blackwell }}' '${{ steps.wheel.outputs.name_blackwell }}'
 
-      - name: Build portable launcher zip
+      - name: Build Ampere portable zip
+        if: steps.wheel.outputs.name_ampere != ''
         shell: bash
         run: |
-          python windows_tools/build_launcher_zip.py --wheel '${{ steps.wheel.outputs.name }}'
+          python windows_tools/build_launcher_zip.py \
+            --variant ampere \
+            --wheel '${{ steps.wheel.outputs.name_ampere }}'
+
+      - name: Build Blackwell portable zip
+        if: steps.wheel.outputs.name_blackwell != ''
+        shell: bash
+        run: |
+          python windows_tools/build_launcher_zip.py \
+            --variant blackwell \
+            --wheel '${{ steps.wheel.outputs.name_blackwell }}'
 
       - name: Generate SHA256SUMS.txt
         shell: bash

@@ -1,6 +1,19 @@
 # Speculative-decoding × parallelism matrix
 
-What works on the SystemPanic 0.19.0 wheel + the devnen patches.
+What works on the SystemPanic 0.19.0 wheel + the devnen patches
+(default `qwen3.6-windows-server-portable-x64.zip`).
+
+The Blackwell zip ships vLLM 0.20.0+cu132.devnen.1. The matrix below is
+the 0.19 reference; 0.20 results are empirical and only partially
+validated. Confirmed on a single RTX 5090 (sm_120) on 2026-05-05:
+**TP=1 + MTP works** — Marlin sm_120 + AutoRound INT4 boots, serves,
+and decodes correctly. Initial single-card decode is ~36 tok/s eager
+(MTP n=6 ctx 200k); MTP-on-Blackwell tuning is still TBD. PP=2 + MTP
+and PP=2 + ngram have not been re-tested on 0.20 yet — the
+`Qwen3NextMTP.SupportsPP` block and the ngram drafter bug were 0.19-era
+and may or may not be fixed. NCCL is the default on Windows in 0.20
+(experimental), so TP=2 numbers may also change. Re-bench on a 2× 3090
+host running the Blackwell zip before relying on PP=2 there.
 
 | Combo | Result |
 |---|---|

@@ -57,14 +57,48 @@ def download(url: str, dst: Path) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=str(REPO / "dist" / "qwen3.6-windows-server-portable-x64.zip"))
-    ap.add_argument("--workdir", default=str(REPO / ".build_launcher"))
+    ap.add_argument("--out", default=None,
+                    help="Output zip path. If omitted, uses dist/qwen3.6-windows-server-portable-x64[-VARIANT].zip.")
+    ap.add_argument("--workdir", default=None,
+                    help="Build scratch dir. Defaults to .build_launcher[-VARIANT] under the repo.")
     ap.add_argument("--wheel", default=None,
                     help="Path to vllm-...+devnen.X-...whl to bundle into wheels/")
+    ap.add_argument("--variant", default=None, choices=[None, "ampere", "blackwell"],
+                    help="Release variant. 'ampere' = current 30/40-series zip (cu126 torch, "
+                         "vllm 0.19.x). 'blackwell' = 50-series zip (cu130 torch, vllm 0.20.x, "
+                         "CUDA 13 shim auto-built at first run). Affects default --out filename. "
+                         "Omit for legacy single-zip builds.")
     args = ap.parse_args()
 
-    out_zip = Path(args.out)
-    work = Path(args.workdir)
+    variant = args.variant
+    if args.out:
+        out_zip = Path(args.out)
+    elif variant:
+        out_zip = REPO / "dist" / f"qwen3.6-windows-server-portable-x64-{variant}.zip"
+    else:
+        out_zip = REPO / "dist" / "qwen3.6-windows-server-portable-x64.zip"
+
+    if args.workdir:
+        work = Path(args.workdir)
+    else:
+        suffix = f"-{variant}" if variant else ""
+        work = REPO / f".build_launcher{suffix}"
+
+    if variant == "blackwell" and args.wheel:
+        wheel_name = Path(args.wheel).name
+        if "+cu13" not in wheel_name:
+            print(f"[build] WARNING: --variant=blackwell but wheel '{wheel_name}' "
+                  f"has no '+cu13*' local-version tag. Launcher autodetect "
+                  f"will install cu126 torch — Blackwell GPUs will fail to boot.",
+                  file=sys.stderr)
+    if variant == "ampere" and args.wheel:
+        wheel_name = Path(args.wheel).name
+        if "+cu13" in wheel_name:
+            print(f"[build] WARNING: --variant=ampere but wheel '{wheel_name}' "
+                  f"is a CUDA 13 wheel. 30/40-series users on default cu126 "
+                  f"drivers will fail to import torch.",
+                  file=sys.stderr)
+
     if work.exists():
         shutil.rmtree(work)
     build = work / "qwen3.6-windows-server"

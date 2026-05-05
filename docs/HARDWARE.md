@@ -16,32 +16,52 @@ Honest answers about what works on what.
 - Single 3090 / 4090, but see the display-attached caveat below
 - A6000 / A40 / data-centre Ampere, in theory; nobody has tested
 
-## RTX 50-series (Blackwell, sm_120), not in the current wheel
+## RTX 50-series (Blackwell, sm_120) — supported via the Blackwell zip
 
-The bundled wheel is `vllm-0.19.0+devnen.1`, built against CUDA 12.6 and
-PyTorch 2.11.0+cu126. That torch build only ships kernels up to sm_90,
-so on RTX 5060 / 5070 / 5080 / 5090 the engine fails at boot with
-`cudaErrorNoKernelImageForDevice` on the first `torch.zeros` call.
-Confirmed on a 5070 + 5060 setup by a community member.
+We ship two release zips. The default
+`qwen3.6-windows-server-portable-x64.zip` (Ampere/Ada) bundles
+`vllm-0.19.0+devnen.1` against CUDA 12.6 / PyTorch cu126 — kernels go up
+to sm_90, so on RTX 5060 / 5070 / 5080 / 5090 it would fail at boot with
+`cudaErrorNoKernelImageForDevice`. **Use
+`qwen3.6-windows-server-portable-x64-blackwell.zip` for any 50-series
+GPU.** That variant bundles `vllm-0.20.0+cu132.devnen.1` against CUDA
+13.2 / PyTorch cu130, and the launcher auto-detects which torch index
+to install from based on the bundled wheel's filename
+(`+cu13*` → cu130).
 
-This is a wheel issue, not a code issue. SystemPanic shipped
-`vllm-windows v0.20.0` on 2026-04-30 (CUDA 13, Ampere + Blackwell, NCCL
-TP/PP on Windows). The devnen patches need to be rebased onto that
-release before this launcher can ship a 50-series build. Tracked as a
-separate branch.
+Verified end-to-end on a single RTX 5090 (driver 596.36, sm_120) on
+2026-05-05:
 
-In the meantime, two working alternatives:
+- Lorbus AutoRound INT4 27B loads in ~17 s and serves on
+  `/v1/chat/completions`, `/v1/messages`, `/v1/responses`.
+- Decode at ~36 tok/s eager mode + reasoning chain (initial
+  measurement; MTP and async-scheduler tuning still TBD on Blackwell).
+- **Marlin sm_120 + AutoRound INT4 works.** The
+  `scalar_types.int4` bug previously reported on older vLLM versions is
+  resolved in 0.20.0; no AWQ repackaging needed. Marlin selects
+  `MarlinLinearKernel` for `GPTQMarlinLinearMethod` on first load.
+- CUDA 13 toolkit is **not** required on the user's machine — the
+  launcher copies `cudart64_13.dll`, `cublas64_13.dll`, etc. from
+  torch's `site-packages/torch/lib/` into a writable
+  `cuda13_shim/bin/` and points `CUDA_PATH` at it so flashinfer's
+  import-time `CDLL` succeeds. Driver 596+ remains the only host
+  requirement.
 
-- WSL2 + Docker, see jaMMint's
-  [vllm-blackwell-guide](https://github.com/lastloop-ai/vllm-blackwell-guide).
-  Reports up to 120 tok/s on 27B and 200 tok/s on the 35B MoE on a
-  5090. Pays the WSL tax (see below) but works today.
-- Wait for the Blackwell branch of this project to ship.
+The default 5090 snapshot is `start_5090` (single-card, ctx 200k,
+mem_util 0.93, MTP n=6). vLLM 0.20.0 hardcodes
+`data_parallel_rpc_port=29550` which leaks across orphaned engine
+cores; snapshots in this project pass a randomised
+`--data-parallel-rpc-port` to dodge the leak.
 
-Independent of the wheel, AutoRound INT4 has a known Marlin bug on
-sm_120 (`scalar_types.int4` not in the supported list). The reported
-workaround is exporting in AWQ format, which Lorbus's release does not
-provide. Even with a CUDA 13 wheel this may be the next wall.
+NCCL TP/PP on Windows is experimental in 0.20.0 — the multi-card
+snapshots in the Blackwell zip are still the existing
+`start_pp2_160k` path. We have no multi-card 5090 box, so re-bench
+multi-GPU on the Blackwell zip on a 2× 3090 host before relying on it.
+
+WSL2 + Docker (e.g. jaMMint's
+[vllm-blackwell-guide](https://github.com/lastloop-ai/vllm-blackwell-guide))
+remains a valid alternative for users who want pure-upstream vLLM, but
+pays the WSL tax (see below).
 
 ## Probably won't work without effort
 
