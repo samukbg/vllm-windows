@@ -39,6 +39,105 @@ how often it bites.
 | Boot fails with Triton `error C2059: syntax error: '}'` while compiling `__triton_launcher.c`, traceback passes through `fused_gdn_gating` and `triton/runtime/build.py` | `vcvars64.bat` activated the older MSVC 14.38 toolset whose `cl.exe` rejects the empty-brace initializers (`T x = {};`) Triton emits. Hits systems with multiple VS Build Tools side-by-side (e.g. 14.38 + 14.44). | **Auto-fixed in the latest launcher**, `msvc_env()` in `snapshots/_common.py` now scans `<install>\VC\Tools\MSVC\` and pins `VCToolsVersion` to the newest installed toolset before invoking `vcvars64.bat`. Manual fallback for older releases: add `set VCToolsVersion=14.44.35207` (or whichever toolset version is in `C:\Program Files\Microsoft Visual Studio\2022\<edition>\VC\Tools\MSVC\`) at the top of `start.bat`. Long-term cleanest fix is to uninstall the older toolset via the VS Installer. |
 | DLL load fails with `cudart64_120.dll not found` on a machine with `cudart64_12.dll` already present | flashinfer's `jit/__init__.py` does an absolute-path `ctypes.CDLL("<CUDA_PATH>/bin/cudart64_120.dll")` at import time. NVIDIA's CUDA 12.x toolkit ships the runtime as `cudart64_12.dll` (the naming changed between 11.x's `cudart64_110.dll` and 12.x's single-major form), so flashinfer crashes EngineCore on every modern Toolkit install. | **Auto-fixed in the latest launcher**, `cuda_env()` in `snapshots/_common.py` probes the CUDA bin dir and copies `cudart64_12.dll` to `cudart64_120.dll` on first launch. The CUDA install dir is usually under Program Files, so the copy can fail with `PermissionError`. In that case the snapshot prints a one-line `copy "..." "..."` command to run once from an elevated cmd; that fixes it permanently. |
 
+## Reading the logs
+
+Three log locations matter, in order of how often you'll touch them.
+
+### `logs\vllm_server.<port>.log` — the engine log
+
+The vLLM serving process tees its stdout here. Most failures show up
+in this file. Useful greps:
+
+```powershell
+# Did boot complete?
+Get-Content logs\vllm_server.5001.log | Select-String "Application startup complete"
+
+# How big is the KV pool, and how much headroom do you have?
+Get-Content logs\vllm_server.5001.log | Select-String "GPU KV cache size|Maximum concurrency"
+
+# MTP working?
+Get-Content logs\vllm_server.5001.log | Select-String "draft_acceptance|system_efficiency"
+
+# Tail in real time
+Get-Content logs\vllm_server.5001.log -Wait
+```
+
+The two oracle lines for context tuning live here:
+
+```
+INFO ... [kv_cache_utils.py:1319] GPU KV cache size: N tokens
+INFO ... [kv_cache_utils.py:1325] Maximum concurrency for X tokens per request: Y.YYx
+```
+
+Trust the `Maximum concurrency` line. `safe_max_ctx ≈ X × Y`. The
+`GPU KV cache size` line is a derived ceiling on this wheel, not the
+physical pool. See [`TUNING.md`](TUNING.md#context) for the full
+oracle workflow.
+
+### `logs\runtime\<port>.json` — the runtime manifest
+
+Each running snapshot writes one file here at boot. The launcher's
+dashboard reads these to decide which card lights up. Schema:
+
+```json
+{
+  "id": "speed",
+  "port": 5001,
+  "wrapper_pid": 12345,
+  "engine_pid": 12356,
+  "started_at": "2026-05-05T20:30:00",
+  "snapshot_py": "C:\\...\\start_speed.py"
+}
+```
+
+If the dashboard shows the wrong card running, look here first. A
+stale `<port>.json` from a crash that skipped the finally block can
+confuse the dashboard for one poll tick (~2 s); the next poll GCs it.
+If a `<port>.json` points at a dead pid AND the dashboard still
+mis-reports, that's a bug worth a GitHub issue with the manifest
+contents and a `tasklist /fi "pid eq <wrapper-pid>"` output.
+
+### `logs\runtime\` deletes itself when needed
+
+Stop hooks delete the manifest when a snapshot exits cleanly. Crashed
+snapshots leave a stale manifest behind; the launcher detects it via
+a probe (`socket.connect_ex` on the port plus a process-alive check
+on the wrapper pid) and either GCs the file or surfaces the orphan.
+
+### Finding orphan PIDs to kill
+
+If a port is wedged after a crash:
+
+```powershell
+# Who's holding port 5001?
+netstat -ano -p tcp | Select-String ":5001 "
+
+# Who's holding the DP RPC port (0.20.0 hardcoded 29550)?
+netstat -ano -p tcp | Select-String ":29550 "
+
+# Kill by pid
+taskkill /F /PID <pid>
+```
+
+Or use the bundled cleanup tool:
+
+```powershell
+python windows_tools\tune_restart.py --port 5001
+```
+
+`tune_restart.py` regex-parses the engine log for every
+`EngineCore pid=N` line and kills each one, then relaunches the
+snapshot. Useful between bench sweeps.
+
+### Detached / cmd-flashes-and-closes log
+
+If `start.bat` flashes a cmd window and disappears, no engine log
+gets written. The cause is the WT relaunch detaching while the
+launcher's PowerShell hide-window call has already hidden the cmd.
+See the `start.bat opens a cmd window that flashes and closes`
+row in the table above for the exact recovery (set `VLLM_NO_WT=1`,
+run from an open shell).
+
 ## When opening an issue
 
 Please include:

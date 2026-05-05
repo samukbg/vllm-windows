@@ -86,9 +86,18 @@ Whichever path you took, run the install verifier:
 python windows_tools\verify_install.py --venv .\venv
 ```
 
-Green = good. Yellow = warnings (usually missing MSVC, only matters for
-FlashInfer JIT which we don't use). Red = something is broken; fix before
+Green = good. Yellow = warnings. Red = something is broken; fix before
 launching.
+
+What each row means:
+
+| Row | What it checks | Common causes of yellow / red |
+|---|---|---|
+| `vllm` | vllm imports and version starts with 0.19.x or 0.20.x | RED if the venv's pip install never finished (re-run `start.bat` to repair). YELLOW if the wheel is some other version (this fork has only validated 0.19.x and 0.20.x). |
+| `patch:*` | Each Windows patch shipped under `windows_patches\` matches the file installed in the venv (sha256). Patch list is per-version (0.19 = full CPU-relay set, 0.20 = reasoning-parser + serving only). | RED if a `pip install --upgrade vllm` was run by hand and overwrote the patched files. Re-extract the launcher zip on top to restore. YELLOW if `windows_patches\` was deleted from the install. |
+| `gpu` | `nvidia-smi` enumerates at least one GPU, and the wheel and GPU's compute capability agree | RED if no GPU. YELLOW if the wheel and GPU mismatch: cu126 wheel + Blackwell GPU (use the `-blackwell` zip), or cu130 wheel + Ampere/Ada (works with driver 596+; harmless). |
+| `cuda13_shim` | `cuda13_shim\bin\cudart64_13.dll` exists (only checked for 0.20 wheels) | YELLOW if missing on a Blackwell install. The launcher rebuilds it from `venv\Lib\site-packages\torch\lib\` on the next boot, so this self-heals — usually means the install is brand new and hasn't booted yet. |
+| `msvc` | `cl.exe` is on PATH or a known VS install path exists | YELLOW always-OK. Only matters for the flashinfer-sampler decode boost; the PyTorch fallback sampler works without MSVC. See [`TUNING.md`](TUNING.md). |
 
 ## Model weights
 

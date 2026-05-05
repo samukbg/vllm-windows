@@ -205,8 +205,11 @@ def main() -> int:
         src = REPO / d
         if src.exists():
             shutil.copytree(src, build / d, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
-    # ship the user-facing start.bat at top level
+    # ship the user-facing start.bat + update.bat at top level
     shutil.copy2(REPO / "launcher" / "start.bat", build / "start.bat")
+    update_bat = REPO / "launcher" / "update.bat"
+    if update_bat.is_file():
+        shutil.copy2(update_bat, build / "update.bat")
 
     # 7b. optionally bundle the patched vLLM wheel under wheels/.
     # Always ship a normalized "vllm.whl" plus a vendored get-pip.py so

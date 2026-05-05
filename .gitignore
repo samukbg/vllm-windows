@@ -19,6 +19,7 @@ venv/
 # Build outputs (portable launcher zip + intermediates)
 dist/
 .build_launcher/
+.build_launcher-*/
 launcher/python/
 
 # Tokenizer/config backups produced by patch_tokenizer.py

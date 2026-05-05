@@ -89,12 +89,10 @@ WSL 2.7.3 closes some of that gap (115 vs 160), not all.
 
 Pick WSL2 / Docker when:
 
-- You need an upstream vLLM feature that didn't make it into the
-  Blackwell zip's 0.20.0 base (NVFP4, MXFP4, ROCm, latest Linux-only
-  optimisations).
-- You need an upstream vLLM feature that is not in the
-  `0.19.0+devnen.1` wheel, like NVFP4, ROCm, or specific Linux-only
-  patches.
+- You need an upstream vLLM feature that isn't in either of this
+  project's wheels (`0.19.0+devnen.1` for the default zip,
+  `0.20.0+cu132.devnen.1` for the Blackwell zip), e.g. NVFP4 / MXFP4
+  KV, ROCm, or Linux-only patches that landed after our base tags.
 - You are already comfortable in Linux and are happy paying the WSL
   tax.
 

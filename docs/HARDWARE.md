@@ -2,6 +2,29 @@
 
 Honest answers about what works on what.
 
+## Compatibility table
+
+Skim this first, prose follows.
+
+| GPU class | Arch / sm | Which zip | Status | Notes |
+|---|---|---|---|---|
+| RTX 3090 (24 GB) | Ampere / sm_86 | default zip | ✅ tested, reference rig | 64.5 tok/s decode (start_speed). Headline numbers measured here. |
+| RTX 3080, A40, A6000, A5000, A100 | Ampere / sm_86 / sm_80 | default zip | 🟡 should work, untested | Same code path as 3090. Please post numbers. |
+| RTX 4090, 4080, 4070 Ti Super | Ada / sm_89 | default zip | 🟡 should work, untested | Same code path as 3090; expect higher numbers. |
+| RTX 4060 Ti 16 GB, 4070 12 GB | Ada / sm_89 | default zip | 🟡 tight on VRAM | 27B INT4 weights are 16.96 GiB; needs boot-quiet + small ctx, or step down to Qwen3-14B. |
+| RTX 5090 | Blackwell / sm_120 | **`-blackwell` zip** | ✅ tested | ~36 tok/s eager initial measurement. See [`BLACKWELL.md`](BLACKWELL.md). |
+| RTX 5070, 5080, 5060 | Blackwell / sm_120 | **`-blackwell` zip** | 🟡 should work, untested | Same wheel, same snapshots. 5060 (8 GB) won't fit 27B; use a smaller model. |
+| GTX 1080 Ti, 1080, GT 1030 | Pascal / sm_61 | none | ❌ won't work | No BF16 in hardware; Marlin INT4 needs sm_80+. Use llama.cpp. |
+| RTX 2080 Ti, 2070 Super | Turing / sm_75 | none | ❌ won't work | Marlin INT4 needs sm_80+. Use llama.cpp. |
+| Intel Arc, Battlemage | Xe | none | ❌ won't work | vLLM has no working Windows path for Intel. |
+| AMD Radeon (RX 6000/7000/9000) | RDNA | none | ❌ won't work | ROCm vLLM doesn't ship in this Windows wheel. Use llama.cpp Vulkan/ROCm. |
+| Apple Silicon | M-series | none | ❌ wrong universe | Use mlx-lm. |
+
+Driver requirements: 596+ for the Blackwell zip (CUDA 13). Any modern
+driver (550+) for the default zip. The default zip auto-installs cu126
+torch; the Blackwell zip auto-installs cu130 torch and a CUDA 13
+runtime shim.
+
 ## Tested
 
 - Windows 10 Enterprise 22H2, 19044.x
