@@ -45,13 +45,19 @@ python -m venv venv
 pip install <url-to-wheel-from-Release>
 ```
 
-Then apply the Windows patches if your wheel was the upstream
-SystemPanic build (the devnen wheel already has them baked in):
+The devnen wheel has all Windows patches (wildcard `served-model-name`,
+qwen3 reasoning parser, on 0.19 also the CPU-relay distributed shims)
+baked in via the engine fork — there's nothing to apply at install
+time. Confirm the wheel is the right one:
 
 ```powershell
-python windows_tools\apply_patches.py --venv venv
 python windows_tools\verify_install.py --venv venv
 ```
+
+If you installed a SystemPanic upstream wheel by accident,
+`verify_install.py` will flag the missing `+devnen` local-version tag
+in red. Reinstall from the wheel bundled in the launcher zip's
+`wheels\` directory.
 
 You can launch any snapshot directly:
 
@@ -71,12 +77,15 @@ toolchains depending on which release line you target:
   [original instructions](https://github.com/SystemPanic/vllm-windows#building-from-source)
   verbatim. Expect 2–4 hours on a 5950X-class machine.
 - **0.20.x (Blackwell line):** CUDA 13.2, MSVC 2022, PyTorch cu130. The
-  bundled `vllm-0.20.0+cu132.devnen.1` wheel is produced by overlay
-  rather than full rebuild — `windows_patches/repackage_wheel.py` patches
-  the Python-only files (reasoning parser, serving) on top of
-  SystemPanic's prebuilt `vllm-0.20.0+cu132` wheel. No CMake build
-  required for Python-level patches; reach for the full source build
-  only if you need to touch CUDA kernels.
+  bundled `vllm-0.20.0+cu132.devnen.1` wheel is produced from the
+  `vllm-for-windows-0.20.0` branch of the
+  [`devnen/vllm-windows`](https://github.com/devnen/vllm-windows) engine
+  fork (3 commits on top of upstream v0.20.0: reasoning parser mirror,
+  hardwired wildcard `served-model-name` in `serving.py`, and a
+  generalized `repackage_wheel.py`). The repackage script overlays the
+  Python-only patches onto SystemPanic's prebuilt `vllm-0.20.0+cu132`
+  wheel without re-running CMake; reach for the full source build only
+  if you need to touch CUDA kernels.
 
 ## After install: first-run sanity
 
@@ -94,7 +103,7 @@ What each row means:
 | Row | What it checks | Common causes of yellow / red |
 |---|---|---|
 | `vllm` | vllm imports and version starts with 0.19.x or 0.20.x | RED if the venv's pip install never finished (re-run `start.bat` to repair). YELLOW if the wheel is some other version (this fork has only validated 0.19.x and 0.20.x). |
-| `patch:*` | Each Windows patch shipped under `windows_patches\` matches the file installed in the venv (sha256). Patch list is per-version (0.19 = full CPU-relay set, 0.20 = reasoning-parser + serving only). | RED if a `pip install --upgrade vllm` was run by hand and overwrote the patched files. Re-extract the launcher zip on top to restore. YELLOW if `windows_patches\` was deleted from the install. |
+| `devnen_tag` | The wheel's PEP 440 local-version segment is `+devnen.*` (0.19 line) or `+cu132.devnen.*` (0.20 line). This is the only at-runtime evidence that the devnen patches (wildcard `served-model-name`, qwen3 reasoning parser, on 0.19 also the CPU-relay distributed shims) are present — they're baked into the wheel by the engine fork, not applied as runtime overlays. | RED if you ran `pip install --upgrade vllm` and pulled an upstream wheel without the local-version tag. Reinstall from the launcher zip's bundled `wheels\` directory. |
 | `gpu` | `nvidia-smi` enumerates at least one GPU, and the wheel and GPU's compute capability agree | RED if no GPU. YELLOW if the wheel and GPU mismatch: cu126 wheel + Blackwell GPU (use the `-blackwell` zip), or cu130 wheel + Ampere/Ada (works with driver 596+; harmless). |
 | `cuda13_shim` | `cuda13_shim\bin\cudart64_13.dll` exists (only checked for 0.20 wheels) | YELLOW if missing on a Blackwell install. The launcher rebuilds it from `venv\Lib\site-packages\torch\lib\` on the next boot, so this self-heals — usually means the install is brand new and hasn't booted yet. |
 | `msvc` | `cl.exe` is on PATH or a known VS install path exists | YELLOW always-OK. Only matters for the flashinfer-sampler decode boost; the PyTorch fallback sampler works without MSVC. See [`TUNING.md`](TUNING.md). |

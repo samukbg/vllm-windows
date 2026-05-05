@@ -1,53 +1,30 @@
-"""Sanity-check: vLLM install, patches applied, GPU present.
+"""Sanity-check: vLLM install, devnen wheel tag, GPU present.
 
 Run after install / before launch. Prints a green / yellow / red summary.
 
 Checks:
-  1. vLLM importable, version is 0.19.0+devnen.* OR 0.20.0+cu132.devnen.*
-     (or the matching upstream tags).
-  2. Each file in windows_patches/ matches the in-venv copy by sha256
-     (patch set picked per detected vLLM major: 0.19 = full CPU-relay set,
-     0.20 = reasoning-parser + serving-models only; CPU-relay was dropped
-     when 0.20.0 shipped NCCL on Windows).
-  3. nvidia-smi reports at least one Ampere+ GPU (sm_86 or higher).
+  1. vLLM importable, version is 0.19.0+devnen.* or 0.20.0+cu132.devnen.*.
+     The PEP 440 local-version segment (`+devnen.*` / `+cu132.devnen.*`)
+     is the proof that the devnen Windows patches (wildcard model name,
+     reasoning parser, etc.) are baked into this wheel — they live in
+     the engine fork, not as runtime overlay files.
+  2. nvidia-smi reports at least one Ampere+ GPU (sm_86 or higher).
      Blackwell (sm_120) is accepted but warns if the installed wheel is
      a cu126 build, and Ampere/Ada warn if the wheel is a cu130 build.
-  4. CUDA 13 runtime shim present when running on a +cu13* wheel.
-  5. MSVC `cl.exe` resolvable (warn if not — only matters for FlashInfer JIT).
+  3. CUDA 13 runtime shim present when running on a +cu13* wheel.
+  4. MSVC `cl.exe` resolvable (warn if not — only matters for FlashInfer JIT).
 
 Exit code 0 = all green. 1 = at least one red. 2 = warnings only.
 """
 from __future__ import annotations
 
 import argparse
-import hashlib
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-PATCHES = REPO / "windows_patches"
-
-# vllm 0.19.x: CPU-relay fork, six patches.
-PATCH_MAP_019 = {
-    "parallel_state.py":            "vllm/distributed/parallel_state.py",
-    "cuda_communicator.py":         "vllm/distributed/device_communicators/cuda_communicator.py",
-    "base_device_communicator.py":  "vllm/distributed/device_communicators/base_device_communicator.py",
-    "gpu_worker.py":                "vllm/v1/worker/gpu_worker.py",
-    "qwen3_reasoning_parser.py":    "vllm/reasoning/qwen3_reasoning_parser.py",
-    "serving_models.py":            "vllm/entrypoints/openai/models/serving.py",
-}
-
-# vllm 0.20.x: NCCL on Windows, CPU-relay dropped. Two source patches remain.
-PATCH_MAP_020 = {
-    "qwen3_reasoning_parser.py":    "vllm/reasoning/qwen3_reasoning_parser.py",
-    "serving_models.py":            "vllm/entrypoints/openai/models/serving.py",
-}
-
-
-def sha(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()[:12]
 
 
 def check_vllm(venv: Path) -> tuple[str, str, str]:
@@ -69,28 +46,29 @@ def check_vllm(venv: Path) -> tuple[str, str, str]:
     return ("YEL", f"unexpected version {out!r}, expected 0.19.x or 0.20.x", out)
 
 
-def check_patches(venv: Path, vllm_version: str) -> list[tuple[str, str, str]]:
-    sp = venv / "Lib" / "site-packages"
-    rows = []
-    if vllm_version.startswith("0.20"):
-        patch_map = PATCH_MAP_020
-    else:
-        # default to 0.19 set; older/unknown versions get the conservative full check.
-        patch_map = PATCH_MAP_019
-    for src_name, dst_rel in patch_map.items():
-        src = PATCHES / src_name
-        dst = sp / dst_rel
-        if not dst.exists():
-            rows.append(("RED", src_name, f"missing in venv: {dst}"))
-            continue
-        if not src.exists():
-            rows.append(("YEL", src_name, "patch source missing in repo"))
-            continue
-        if sha(src) == sha(dst):
-            rows.append(("GRN", src_name, "applied"))
-        else:
-            rows.append(("RED", src_name, "DIFFERS — patches not applied"))
-    return rows
+def check_devnen_tag(vllm_version: str) -> tuple[str, str]:
+    """Confirm the wheel carries a devnen local-version tag.
+
+    The devnen patches (wildcard `served-model-name`, qwen3 reasoning
+    parser, and on 0.19 also the CPU-relay distributed shims) are baked
+    into the wheel by the engine fork, not applied at install time. The
+    only at-runtime evidence they're present is the PEP 440 local-version
+    segment on `vllm.__version__`.
+    """
+    if not vllm_version:
+        return ("RED", "no version string to check")
+    if "+" not in vllm_version:
+        return ("RED", f"upstream wheel {vllm_version!r} — devnen patches "
+                "(wildcard model name, qwen3 reasoning) are NOT applied. "
+                "Reinstall from the launcher zip's bundled wheel.")
+    local = vllm_version.split("+", 1)[1]
+    # 0.19 line: +devnen.N
+    # 0.20 line: +cu132.devnen.N
+    if "devnen" in local:
+        return ("GRN", f"devnen wheel tag '+{local}' — patches baked in")
+    return ("YEL", f"local-version '+{local}' is not a known devnen tag; "
+            "this wheel may be a SystemPanic upstream build without the "
+            "wildcard model-name and reasoning-parser patches")
 
 
 def check_gpu(vllm_version: str = "") -> tuple[str, str]:
@@ -119,13 +97,10 @@ def check_gpu(vllm_version: str = "") -> tuple[str, str]:
             blackwell.append(line)
     if too_old:
         return ("YEL", f"non-Ampere+ GPU detected: {too_old}; this fork was tuned on sm_86")
-    # Wheel/GPU mismatch warnings.
     if blackwell and vllm_version.startswith("0.19"):
         return ("YEL", f"Blackwell GPU {blackwell} but cu126 wheel installed — "
                 "use the qwen3.6-windows-server-portable-x64-blackwell.zip release.")
     if not blackwell and vllm_version.startswith("0.20"):
-        # Ampere/Ada on the cu13 wheel works but only with the CUDA 13 driver
-        # (596+). The driver is checked indirectly via the import succeeding.
         return ("GRN", f"{' | '.join(lines)} (running cu13x wheel)")
     return ("GRN", " | ".join(lines))
 
@@ -134,9 +109,6 @@ def check_cuda13_shim(venv: Path, vllm_version: str) -> tuple[str, str]:
     """Confirm the launcher-built CUDA 13 shim is present when needed."""
     if not vllm_version.startswith("0.20"):
         return ("GRN", "n/a (cu126 wheel)")
-    # The shim lives next to the launcher root, not the venv. Look in
-    # both common spots: the repo root (dev) and the writable root sibling
-    # of the venv (portable extract).
     candidates = [
         REPO / "cuda13_shim" / "bin" / "cudart64_13.dll",
         venv.parent / "cuda13_shim" / "bin" / "cudart64_13.dll",
@@ -174,8 +146,7 @@ def main() -> int:
     rows: list[tuple[str, str, str]] = []
     vlvl, vmsg, vver = check_vllm(venv)
     rows.append(("vllm", vlvl, vmsg))
-    for src, lvl, msg in check_patches(venv, vver):
-        rows.append(("patch:" + src, lvl, msg))
+    rows.append(("devnen_tag",) + check_devnen_tag(vver))
     rows.append(("gpu",) + check_gpu(vver))
     rows.append(("cuda13_shim",) + check_cuda13_shim(venv, vver))
     rows.append(("msvc",) + check_msvc())
