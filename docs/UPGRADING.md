@@ -1,5 +1,17 @@
 # Upgrading
 
+> **v1.2.2 — important decode-tps fix.** Disables `--enable-prefix-caching`
+> in all 12 snapshots. Pre-v1.2.2 builds had a stepwise decode slowdown
+> after long-context requests because Qwen3-Next's Mamba/SSM state is
+> incompatible with prefix caching ([vLLM issue #17140](https://github.com/vllm-project/vllm/issues/17140)).
+> If you upgrade with `update.bat` you keep your `launcher\configs.yaml`
+> by default, which is fine — the snapshot `.py` files (which carry the
+> actual flag) are replaced. The configs.yaml `enable_prefix_caching`
+> field is informational only; the launcher reads the flag from the `.py`
+> file at boot. Re-launch your snapshot after upgrading and decode will
+> stay at documented speed across mixed workloads. Full write-up in
+> [`docs/TUNING.md`](TUNING.md).
+
 This launcher is fully portable and ships an in-place updater. The
 short version: double-click `update.bat`, accept the defaults, done.
 

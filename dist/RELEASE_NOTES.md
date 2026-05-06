@@ -21,6 +21,48 @@ Portable Windows launcher for Qwen3.6-27B inference. Unzip, double-click `start.
 3. Extract anywhere, no admin needed, **including `Program Files` / `Program Files (x86)`**.
 4. Double-click `start.bat`. On first run the launcher auto-discovers existing weights or offers to download Lorbus/Qwen3.6-27B-int4-AutoRound from Hugging Face (~16 GB, public, no token).
 
+## What's new in v1.2.2 — important decode-tps fix
+
+**TL;DR:** if you ever sent a long prompt (e.g. summarising a code file) and noticed every following request was suddenly slower, **this release fixes that.** Just `update.bat`.
+
+### The bug
+
+Every snapshot in v1.2.1 and earlier shipped with `--enable-prefix-caching` enabled. Qwen3.6-27B is a hybrid Mamba/SSM model, and per [vLLM issue #17140](https://github.com/vllm-project/vllm/issues/17140) prefix caching is **incompatible** with SSM state management — the SSM state is not tracked by the block manager, so prefix-cached blocks left Mamba state in a "dirty" mode after long-context requests. Symptom on Blackwell (RTX 5090, measured this release):
+
+- Fresh server, short prompts: 130–160 tok/s (matches docs).
+- After one ~24 k-token request: drops to 88–111 tok/s (-30 %), **stays stuck**.
+- After a second long request: drops to 40–44 tok/s (-70 %), **stays stuck**.
+- GPU clocks healthy, KV cache at 9.5 % — pure software regression.
+- Pre-fix workaround was to restart the server between long-context turns.
+
+The 3090 was hit by the same bug but less obviously (smaller absolute drop, masked by existing MTP-acceptance variability across prompts).
+
+### The fix
+
+All 12 shipped snapshots now pass `--no-enable-prefix-caching`. Measured post-fix on the same 5090 across 5 alternating long+short rounds:
+
+| Round | Long-prompt decode | Short-prompt decode |
+|---|---|---|
+| 1 | 96 tok/s | 129 / 135 / 137 |
+| 2 | 104 tok/s | 129 / 135 / 137 |
+| 5 | 104 tok/s | 129 / 135 / 137 |
+
+Zero degradation across rounds. Decode stays at documented speed across mixed long+short workloads, indefinitely.
+
+### What you give up
+
+The warm-prefix TTFT speedup on identical repeat prompts. Negligible in practice — every shipped snapshot uses `--max-num-seqs=1` (single user), so repeat-prefix hits are rare to begin with.
+
+### Files changed
+
+- All 12 `snapshots/start_*.py` (3090 + 5090 snapshots both).
+- `launcher/configs.yaml` `shared_defaults.enable_prefix_caching: false` (informational; the flag the engine actually reads is in the `.py`).
+- `docs/TROUBLESHOOTING.md`, `docs/TUNING.md`, `docs/UPGRADING.md`, README — full bug write-up and upgrade notes.
+
+### How to upgrade
+
+`update.bat`. Done.
+
 ## What's new in v1.1
 
 Three new ready-to-go snapshots that pair Unsloth's recommended sampler settings with the right thinking-mode toggle, so you don't have to hand-edit a JSON or a snapshot file to get the workload-tuned defaults:

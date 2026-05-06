@@ -12,6 +12,30 @@
 
 ---
 
+> ## Important fix in v1.2.2 — please upgrade
+>
+> Earlier releases (v1.2.1 and prior) shipped with `--enable-prefix-caching`
+> turned on in every snapshot. Qwen3.6-27B is a hybrid Mamba/SSM model, and
+> per [vLLM issue #17140](https://github.com/vllm-project/vllm/issues/17140)
+> prefix caching is **incompatible** with SSM state management. The result
+> was a stepwise decode-tps regression after long-context requests:
+>
+> - Fresh server, short prompts: full speed (~130 tok/s on 5090, ~72 on 3090).
+> - After one ~24 k-token request: dropped ~30 %, never recovered.
+> - After a second long request: dropped to ~30 % of original, never recovered.
+> - Workaround pre-fix was to restart the server between long-context turns.
+>
+> **v1.2.2 disables prefix caching in all 12 snapshots.** Decode stays at
+> documented speed across mixed long+short workloads. The only thing lost
+> is the warm-prefix TTFT speedup on identical repeat prompts — irrelevant
+> for single-user serving (which every snapshot uses, `--max-num-seqs=1`).
+>
+> **To get the fix:** `update.bat` (or download the new release zip and
+> re-extract). See [`docs/UPGRADING.md`](docs/UPGRADING.md) for details
+> and [`docs/TUNING.md`](docs/TUNING.md) for the full bug write-up.
+
+---
+
 ## What this is
 
 A small portable Windows app that gives you an OpenAI-compatible API
