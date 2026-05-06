@@ -99,7 +99,7 @@ randomised `--data-parallel-rpc-port` (see "RPC port leak" below)
 and **no** `VLLM_ATTENTION_BACKEND` env var (deprecated in 0.20.0;
 the CLI flag still works):
 
-**Bench 2026-05-06 (v1.2.3, 575W power cap, `--no-enable-prefix-caching` shipped from v1.2.2, median of 3 × 200-token short runs):**
+**Bench 2026-05-06 (v1.2.3, 575W power cap, `--no-enable-prefix-caching` shipped from v1.2.2, median of 3 × 200-token short runs).** v1.2.5 re-enables prefix caching (vLLM PR #25752 / Mamba2 APC in the wheel auto-applies `mamba_cache_mode='align'`); see the v1.2.5 notes below the table.
 
 | Snapshot      | ctx  | MTP n | mem_util | Short decode | 24k decode | 24k prefill | Use it when |
 |---------------|------|-------|----------|--------------|------------|-------------|-------------|
@@ -107,6 +107,30 @@ the CLI flag still works):
 | `rtx5090_max` | 280k | 3     | 0.95     | 154.3 tok/s     | 90.2 tok/s      | 3,100–3,300 tok/s | When you need >240k context (entire codebase, full transcript). 4% slower short decode, 16% slower long decode. |
 
 (Earlier 500W baseline was 124.9 / 138.0 short decode. The 500W → 575W cap lift adds ~20–30% short decode and ~10–20% long-prompt decode.)
+
+**v1.2.5 update — prefix caching back on, large prefill speedup.** vLLM PR
+[#25752](https://github.com/vllm-project/vllm/pull/25752) (Mamba2 Automatic
+Prefix Caching) shipped upstream and is in the wheel; with prefix caching
+enabled, vLLM auto-applies `mamba_cache_mode='align'` for Qwen3_5 so the
+v1.2.2-era #17140 stepwise decode regression no longer reproduces. Re-bench
+on `rtx5090` (ctx 240k, MTP n=6, batch 4128, 575 W):
+
+| Prompt size  | OFF (v1.2.2-v1.2.4) | ON (v1.2.5) | Speedup    |
+|--------------|---------------------|-------------|------------|
+| 12 k prefill | 686 tok/s           | 2147 tok/s  | **3.1x**   |
+| 16 k prefill | 559 tok/s           | 2034 tok/s  | **3.6x**   |
+| 24 k prefill | timeout             | 4333 tok/s  | unblocks   |
+| 32 k prefill | timeout             | 2479 tok/s  | unblocks   |
+| 48 k prefill | timeout             | 2444 tok/s  | unblocks   |
+| KV pool      | 79,968 tokens       | 94,656      | +18 %      |
+
+`windows_tools/repro_17140.py` (3 short → 24k hit → 3 short → 24k hit → 3
+short) shows decode drift +2.6 % then +2.3 % across the two long hits —
+the 130 → 90 → 40 cliff does not recur. Warm-prefix TTFT on a 24 k re-hit
+drops from ~42 s cold to ~1.6 s. Short-prompt headline decode is in the
+~125 tok/s range under bench.py methodology; the 158 tok/s table number
+above came from the v1.2.3 prefix-caching-off baseline and will be
+re-measured under v1.2.5 conditions in a follow-up.
 
 Both beat every 3090 snapshot on context size at the same MTP n.
 

@@ -65,10 +65,30 @@ def _resolve_vllm_exe() -> tuple[Path, Path]:
 
 VENV, VLLM_EXE = _resolve_vllm_exe()
 
-MODEL_PATH = os.environ.get(
-    "VLLM_MODEL_DIR",
-    str(REPO_ROOT / "models" / "Qwen3.6-27B-int4-AutoRound"),
-)
+def _resolve_model_path() -> str:
+    """Resolve model dir using the same priority as the launcher.
+
+    1. $VLLM_MODEL_DIR (explicit override).
+    2. user_config.json["model_dir"] at repo root (written by the launcher
+       once it finds/downloads the model — typically not next to the repo).
+    3. Repo-root default ``models/Qwen3.6-27B-int4-AutoRound``.
+    """
+    env = os.environ.get("VLLM_MODEL_DIR")
+    if env:
+        return env
+    cfg_path = REPO_ROOT / "user_config.json"
+    if cfg_path.exists():
+        try:
+            import json
+            saved = json.loads(cfg_path.read_text(encoding="utf-8")).get("model_dir")
+            if saved and Path(saved).exists():
+                return str(saved)
+        except Exception:
+            pass
+    return str(REPO_ROOT / "models" / "Qwen3.6-27B-int4-AutoRound")
+
+
+MODEL_PATH = _resolve_model_path()
 
 
 # vswhere.exe lives under the VS Installer dir, NOT on PATH by default.

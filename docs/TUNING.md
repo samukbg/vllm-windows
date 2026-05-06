@@ -28,6 +28,13 @@ KV, FlashInfer, and a few Genesis patches are unavailable. What remains:
    575W power cap (v1.2.3 re-bench, --no-enable-prefix-caching, two snapshots):
    ctx 240k MTP n=6 (rtx5090)       -> short 158.1 / 24k decode 107.8 / 24k prefill 3,100-3,300
    ctx 280k MTP n=3 (rtx5090_max)   -> short 154.3 / 24k decode  90.2 / 24k prefill 3,100-3,300
+
+   v1.2.5 (--enable-prefix-caching ON, vLLM PR #25752 / Mamba2 APC in wheel):
+   ctx 240k MTP n=6 (rtx5090)       -> short ~125 / KV pool 94,656 (+18%)
+                                       prefill 12k 686 -> 2147 tok/s (3.1x)
+                                       prefill 16k 559 -> 2034 tok/s (3.6x)
+                                       prefill 24k+   timeout -> 2-4k tok/s
+                                       decode after 2x 24k hits: stable
    ```
 
    **Why two snapshots, not three.** v1.2.3 retired `rtx5090_speed`.
@@ -106,16 +113,64 @@ KV, FlashInfer, and a few Genesis patches are unavailable. What remains:
 
 2. `--enable-chunked-prefill` is on in every shipped snapshot.
 
-3. **`--enable-prefix-caching` is OFF in every shipped snapshot** (since 2026-05-06).
-   It is **incompatible** with Qwen3-Next's hybrid Mamba/SSM architecture
-   ([vLLM issue #17140](https://github.com/vllm-project/vllm/issues/17140)):
-   SSM state is not managed by the block manager, so prefix-cached KV blocks
-   leave Mamba state in a "dirty" mode. The observed regression on Blackwell:
-   short-prompt decode dropped 30 % after one 24 k-token request and a further
-   30 % after a second (130 → 90 → 40 tok/s, stuck). Disabling prefix caching
-   fully recovers the documented 130 tok/s short-prompt decode and stays
-   stable across mixed long/short workloads. Trade-off: warm-prefix TTFT
-   speedup is lost, but `--max-num-seqs=1` makes that a rare hit anyway.
+3. **`--enable-prefix-caching` is ON in every shipped snapshot** (since v1.2.5,
+   2026-05-06). v1.2.2 had it off as a defensive workaround for
+   [vLLM issue #17140](https://github.com/vllm-project/vllm/issues/17140), the
+   stepwise decode regression on Qwen3-Next where short-prompt decode dropped
+   30 % after one 24 k-token request and a further 30 % after a second
+   (130 → 90 → 40 tok/s, stuck) because SSM state was not tracked across
+   prefix-cached KV blocks. That bug is fixed upstream by
+   [vLLM PR #25752](https://github.com/vllm-project/vllm/pull/25752) (Mamba2
+   Automatic Prefix Caching, merged 2025-10-04). Both shipped wheels include
+   the fix in their source tree, and with prefix caching enabled vLLM
+   auto-sets `mamba_cache_mode='align'` for `Qwen3_5ForConditionalGeneration`
+   at `vllm/model_executor/models/config.py:367`, so SSM state aligns with
+   cache-block boundaries.
+
+   **What we measured on the 5090** (`start_5090`, ctx 240k, MTP n=6,
+   `max_num_batched_tokens=4128`) re-bench at 575 W:
+
+   | Prompt size | OFF (v1.2.2-v1.2.4) | ON (v1.2.5) | Speedup    |
+   |-------------|---------------------|-------------|------------|
+   | 4 k         | 3744 tok/s          | 3375 tok/s  | similar    |
+   | 8 k         | 3019 tok/s          | 3497 tok/s  | +16 %      |
+   | 12 k        | 686 tok/s           | 2147 tok/s  | **3.1x**   |
+   | 16 k        | 559 tok/s           | 2034 tok/s  | **3.6x**   |
+   | 20 k        | timeout             | 2473 tok/s  | unblocks   |
+   | 24 k        | timeout             | 4333 tok/s  | unblocks   |
+   | 32 k        | timeout             | 2479 tok/s  | unblocks   |
+   | 48 k        | timeout             | 2444 tok/s  | unblocks   |
+
+   Decode regression test (`windows_tools/repro_17140.py`, the exact
+   protocol from the v1.2.2 bug write-up: 3 short → one 24k hit → 3
+   short → one 24k hit → 3 short):
+
+   | Phase                    | tok/s   | drift   |
+   |--------------------------|---------|---------|
+   | baseline (3 short)       | 119.3   | —       |
+   | after 1st 24k hit        | 122.4   | +2.6 %  |
+   | after 2nd 24k hit        | 122.0   | +2.3 %  |
+
+   No stepwise drop. The old 130 → 90 → 40 pattern does not reproduce on
+   the 0.20.0 wheel with prefix caching on. KV pool also gains ~18 %
+   headroom (94,656 vs 79,968 tokens at the same ctx=240k). Warm-prefix
+   TTFT on a 24 k re-hit drops from ~42 s cold to ~1.6 s, useful for
+   agents that re-send long context.
+
+   Why the 3090 snapshots got the same flip without a separate hardware
+   test: the `vllm-0.19.0+devnen.1` source tree the Ampere/Ada wheel is
+   built from contains the same Mamba2 APC code (`alignment_tokens`,
+   `MambaSpec`, the `config.py:367` auto-default), verified via the
+   `devnen/vllm-windows` GitHub API at tag `v0.19.0-devnen.1`. If the
+   regression resurfaces on a real 3090 / 4090, please open an issue
+   with the `repro_17140.py` output.
+
+   Reproducing the bench yourself:
+   ```powershell
+   python windows_tools\bench_prefill_quick.py `
+       --sizes 4096,8000,12000,16000,20000,24000,32000,48000 --timeout 60
+   python windows_tools\repro_17140.py
+   ```
 
 ## Context
 

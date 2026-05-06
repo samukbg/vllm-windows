@@ -98,7 +98,7 @@ The Blackwell zip ships two single-card 5090 snapshots:
 | `rtx5090`     | 240k | 6     | 0.95     | **158.1 tok/s** | **107.8 tok/s** | 3,100–3,300 tok/s |
 | `rtx5090_max` | 280k | 3     | 0.95     | 154.3 tok/s     | 90.2 tok/s      | 3,100–3,300 tok/s |
 
-(575W power cap, v1.2.3, `--no-enable-prefix-caching`. Earlier 500W
+(575W power cap, v1.2.3, `--no-enable-prefix-caching` — v1.2.5 re-enables prefix caching now that vLLM PR #25752 ships in the wheel; 12-16k prefill jumps ~3-4x, 24k+ prompts no longer time out. See [`BLACKWELL.md`](BLACKWELL.md). Earlier 500W
 baseline was 124.9 / 138.0 short decode. The third "speed" snapshot
 that shipped in v1.2.0–v1.2.2 was retired in v1.2.3 — its 575W
 re-bench showed no inference advantage over `rtx5090` and a

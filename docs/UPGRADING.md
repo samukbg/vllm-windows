@@ -1,16 +1,31 @@
 # Upgrading
 
-> **v1.2.2 — important decode-tps fix.** Disables `--enable-prefix-caching`
-> in all 12 snapshots. Pre-v1.2.2 builds had a stepwise decode slowdown
-> after long-context requests because Qwen3-Next's Mamba/SSM state is
-> incompatible with prefix caching ([vLLM issue #17140](https://github.com/vllm-project/vllm/issues/17140)).
+> **v1.2.5 — prefix caching back on, big prefill speedup.** Re-enables
+> `--enable-prefix-caching` in all 12 snapshots. The v1.2.2-era
+> stepwise decode regression
+> ([vLLM issue #17140](https://github.com/vllm-project/vllm/issues/17140))
+> was fixed upstream by
+> [vLLM PR #25752](https://github.com/vllm-project/vllm/pull/25752)
+> (Mamba2 Automatic Prefix Caching, merged 2025-10-04), which is in
+> both shipped wheels. With prefix caching on, vLLM auto-sets
+> `mamba_cache_mode='align'` for Qwen3_5 so SSM state is tracked
+> across cache blocks. Net effect on the verified 5090 path: 3-4x
+> faster prefill at 12-16k tokens, 24k+ prompts no longer time out,
+> +18 % KV pool headroom, and no decode regression after repeated
+> long-context hits. Same fix flipped for the 3090/4090 snapshots on
+> the assumption that the same upstream code path is in the
+> `vllm-0.19.0+devnen.1` source tree (it is — verified via gh API).
 > If you upgrade with `update.bat` you keep your `launcher\configs.yaml`
-> by default, which is fine — the snapshot `.py` files (which carry the
-> actual flag) are replaced. The configs.yaml `enable_prefix_caching`
-> field is informational only; the launcher reads the flag from the `.py`
-> file at boot. Re-launch your snapshot after upgrading and decode will
-> stay at documented speed across mixed workloads. Full write-up in
+> by default, which is fine — the snapshot `.py` files carry the
+> actual flag and are replaced. Full write-up and bench tables in
 > [`docs/TUNING.md`](TUNING.md).
+>
+> **History note:** v1.2.2 (released a few days earlier) shipped with
+> prefix caching **off** as a defensive workaround for the same
+> regression. Both v1.2.2 and v1.2.5 produce coherent, stable output;
+> v1.2.5 is faster and uses less VRAM for the same context window.
+> Users on v1.2.x can upgrade in place without losing custom snapshots
+> or model weights.
 
 This launcher is fully portable and ships an in-place updater. The
 short version: double-click `update.bat`, accept the defaults, done.

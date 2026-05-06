@@ -120,7 +120,19 @@ def main() -> int:
         "--max-num-seqs=1",
         f"--max-num-batched-tokens={MAX_NUM_BATCHED_TOKENS}",
         "--block-size=32",
-        "--no-enable-prefix-caching",  # vLLM issue #17140: prefix caching is incompatible with Qwen3-Next hybrid Mamba/SSM; causes decode-tps regression after long-context requests
+        # Prefix caching: re-enabled in v1.2.4. The original v1.2.2 doc cited
+        # vLLM #17140 (130 -> 90 -> 40 tok/s stepwise decode regression after
+        # 24k-token requests) — that bug was fixed by PR #25752 / Mamba2 APC
+        # (merged 2025-10-04), included in our vLLM 0.20.0 wheel. With prefix
+        # caching enabled, vLLM auto-sets mamba_cache_mode='align' for
+        # Qwen3_5 (vllm/model_executor/models/config.py:367), so SSM state
+        # is properly tracked across cache blocks.
+        # Verified: (a) no decode regression across 2x 24k-token hits
+        # (119.3 -> 122.4 -> 122.0 tok/s, +2.6% / +2.3% drift, see
+        # windows_tools/repro_17140.py); (b) chunked-prefill at small
+        # max_num_batched_tokens no longer hits the 5x cliff at 12-16k tokens;
+        # (c) 24k+ prompts that previously timed out now run at ~2-4k tok/s.
+        "--enable-prefix-caching",
         "--enable-chunked-prefill",
         "--enable-auto-tool-choice",
         "--tool-call-parser=qwen3_coder",

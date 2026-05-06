@@ -1,5 +1,21 @@
 @echo off
-set "PY=%VLLM_WINDOWS_VENV%\Scripts\python.exe"
-if "%VLLM_WINDOWS_VENV%"=="" set "PY=%~dp0..\venv\Scripts\python.exe"
-if not exist "%PY%" set "PY=%~dp0..\python\python.exe"
-"%PY%" "%~dp0start_gpu0_50k.py" %*
+setlocal
+cd /d "%~dp0"
+set "REPO_ROOT=%~dp0.."
+set "PY="
+if defined VLLM_WINDOWS_VENV if exist "%VLLM_WINDOWS_VENV%\Scripts\python.exe" set "PY=%VLLM_WINDOWS_VENV%\Scripts\python.exe"
+if not defined PY if exist "%REPO_ROOT%\venv\Scripts\python.exe" set "PY=%REPO_ROOT%\venv\Scripts\python.exe"
+if not defined PY if exist "%REPO_ROOT%\python\python.exe" set "PY=%REPO_ROOT%\python\python.exe"
+if not defined PY (
+    echo [start_gpu0_50k.bat] no python interpreter found under %REPO_ROOT%
+    pause
+    exit /b 1
+)
+"%PY%" -u "%~dp0start_gpu0_50k.py" %*
+set "RC=%ERRORLEVEL%"
+if not "%RC%"=="0" (
+    echo.
+    echo [start_gpu0_50k.bat] exited with code %RC%
+    pause
+)
+endlocal & exit /b %RC%

@@ -10,7 +10,7 @@ windows:
     max_num_seqs: 1
     max_num_batched_tokens: 4128
     block_size: 32
-    enable_prefix_caching: false  # disabled: incompatible with Qwen3-Next hybrid Mamba (vLLM issue #17140) — caused 30-70% decode-tps regression after long-context requests
+    enable_prefix_caching: true  # re-enabled v1.2.5: vLLM PR #25752 (Mamba2 APC, merged 2025-10-04) is in our wheel and auto-sets mamba_cache_mode='align' for Qwen3_5, fixing the v1.2.2-era #17140 regression at the source
     enable_chunked_prefill: true
     enable_auto_tool_choice: true
     tool_call_parser: qwen3_coder
@@ -323,6 +323,15 @@ windows:
         Earlier 500W baseline (v1.2.0-v1.2.2): 124.9 / 89.3 / 2796.
         575W lift adds ~27% short decode, ~21% long decode.
 
+        v1.2.5 re-bench (--enable-prefix-caching, vLLM PR #25752 / Mamba2 APC):
+          - short-prompt decode  : ~125 tok/s (steady, bench.py)
+          - 12k-prompt prefill   : ~2,150 tok/s (was 686, 3.1x)
+          - 16k-prompt prefill   : ~2,030 tok/s (was 559, 3.6x)
+          - 24k+ prefill         : 2-4k tok/s (was timeout)
+          - GPU KV cache size    : 94,656 tokens (+18% headroom)
+          - decode regression after 2x 24k hits: none (+2-4% drift)
+        Prefix caching is now the recommended path on the Blackwell wheel.
+
         Pick this unless you specifically need >240k context.
 
         Requires the Blackwell zip
@@ -360,6 +369,11 @@ windows:
           - 24k-prompt prefill   : 3,100-3,300 tok/s
           - GPU KV cache size    : 78,400 tokens
           - max concurrency @ ctx: 1.05x (right at the edge)
+
+        v1.2.5 ships with --enable-prefix-caching (vLLM PR #25752 / Mamba2 APC
+        in the wheel auto-applies mamba_cache_mode='align' for Qwen3_5).
+        Same upstream fix as the rtx5090 snapshot; expect similar prefill
+        speedups at 12-32k tokens with no decode regression.
 
         Earlier 500W baseline (v1.2.0-v1.2.2): 138.0 / 81.0 / 2818.
 

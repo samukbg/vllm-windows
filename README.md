@@ -12,27 +12,41 @@
 
 ---
 
-> ## Important fix in v1.2.2 — please upgrade
+> ## v1.2.5 — prefix caching back on, big prefill speedup
 >
-> Earlier releases (v1.2.1 and prior) shipped with `--enable-prefix-caching`
-> turned on in every snapshot. Qwen3.6-27B is a hybrid Mamba/SSM model, and
-> per [vLLM issue #17140](https://github.com/vllm-project/vllm/issues/17140)
-> prefix caching is **incompatible** with SSM state management. The result
-> was a stepwise decode-tps regression after long-context requests:
+> v1.2.2 turned prefix caching **off** in all 12 snapshots to dodge a
+> stepwise decode regression on long-context requests
+> ([vLLM issue #17140](https://github.com/vllm-project/vllm/issues/17140)),
+> a real bug in Qwen3-Next's hybrid Mamba/SSM state handling.
 >
-> - Fresh server, short prompts: full speed (~130 tok/s on 5090, ~72 on 3090).
-> - After one ~24 k-token request: dropped ~30 %, never recovered.
-> - After a second long request: dropped to ~30 % of original, never recovered.
-> - Workaround pre-fix was to restart the server between long-context turns.
+> That bug is fixed upstream by
+> [vLLM PR #25752](https://github.com/vllm-project/vllm/pull/25752)
+> (Mamba2 Automatic Prefix Caching, merged 2025-10-04), which is in the
+> wheel both release zips ship. With prefix caching enabled, vLLM
+> auto-sets `mamba_cache_mode='align'` for Qwen3_5 so SSM state is
+> tracked across cache blocks. **v1.2.5 turns prefix caching back on in
+> every snapshot.**
 >
-> **v1.2.2 disables prefix caching in all 12 snapshots.** Decode stays at
-> documented speed across mixed long+short workloads. The only thing lost
-> is the warm-prefix TTFT speedup on identical repeat prompts — irrelevant
-> for single-user serving (which every snapshot uses, `--max-num-seqs=1`).
+> What you get on the 5090 path (verified, see
+> [`docs/TUNING.md`](docs/TUNING.md)):
+>
+> - **Prefill 12k**: 686 → ~2,150 tok/s (3.1x)
+> - **Prefill 16k**: 559 → ~2,030 tok/s (3.6x)
+> - **Prefill 24k+**: was timing out → 2-4k tok/s
+> - **Decode after 2x 24k hits**: stable, no regression (the old #17140
+>   pattern of 130 → 90 → 40 tok/s does not reproduce)
+> - **KV pool**: +18 % headroom (94,656 vs 79,968 tokens at ctx=240k)
+> - **Warm-prefix TTFT** on a 24k re-hit: ~1.6 s vs ~42 s cold
+>
+> The same wheel-side fix ships in the Ampere/Ada zip's
+> `vllm-0.19.0+devnen.1` build (the Mamba2 APC code is present in the
+> source tree the wheel is built from). 3090/4090 snapshots are flipped
+> on the same assumption; if you hit the old regression on Ampere
+> hardware, please open an issue.
 >
 > **To get the fix:** `update.bat` (or download the new release zip and
 > re-extract). See [`docs/UPGRADING.md`](docs/UPGRADING.md) for details
-> and [`docs/TUNING.md`](docs/TUNING.md) for the full bug write-up.
+> and [`docs/TUNING.md`](docs/TUNING.md) for the bench tables.
 
 ---
 
