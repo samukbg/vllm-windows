@@ -20,7 +20,16 @@ venv/
 dist/
 .build_launcher/
 .build_launcher-*/
+.build_wheels/
 launcher/python/
+
+# TUI development helpers (per-dev, not shipped)
+view_app.py
+test_dashboard_arch.py
+.tui_screens/
+
+# Local handoff notes (per-session, not pushed)
+HANDOFF.md
 
 # Tokenizer/config backups produced by patch_tokenizer.py
 tokenizer_config.json.bak

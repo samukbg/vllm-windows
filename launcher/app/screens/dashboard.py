@@ -7,6 +7,10 @@ from textual.widgets import Header, Footer, Static, ContentSwitcher, Button
 from ..widgets.config_card import ConfigCard
 from ..widgets.nav_bar import NavBar
 from ..config import WinConfig, LinuxConfig
+from ..gpu_arch import (
+    ARCH_AMPERE, ARCH_BLACKWELL, ARCH_LABEL, ARCH_UNKNOWN,
+    config_arch, detect_arch, detected_gpu_names,
+)
 
 
 class Dashboard(Screen):
@@ -23,6 +27,16 @@ class Dashboard(Screen):
         height: 2;
         color: #d29922;
         text-style: bold;
+    }
+    .arch-section-title {
+        padding: 1 2 0 2;
+        height: 2;
+        text-style: bold;
+    }
+    .arch-detect-line {
+        padding: 0 2 1 2;
+        color: #8b949e;
+        height: auto;
     }
     .linux-host-line {
         padding: 1 3 0 3;
@@ -91,13 +105,67 @@ class Dashboard(Screen):
                 legacy = [c for c in self.bundle.windows if c.tier == "legacy"]
                 blocked = [c for c in self.bundle.windows if c.tier == "blocked"]
 
-                yield Static("[b #58a6ff]Active configs[/]", classes="legacy-section-title")
-                with Grid(classes="cards-grid") as g:
-                    g.styles.grid_size_rows = max(1, (len(active) + 2) // 3)
-                    for c in active:
-                        card = ConfigCard(c, is_running=False, id=f"card-{c.id}")
-                        self.cards[c.id] = card
-                        yield card
+                detected = detect_arch()
+                gpu_names = detected_gpu_names()
+                arch_label = ARCH_LABEL.get(detected, "Universal")
+
+                # Detection banner — tells the user what the launcher
+                # picked up from nvidia-smi, so the snapshot ordering
+                # below isn't a mystery.
+                if gpu_names:
+                    banner = (
+                        f"[#8b949e]Detected GPU:[/] "
+                        f"[#e6edf3]{', '.join(gpu_names)}[/] "
+                        f"→ [b #58a6ff]{arch_label}[/]"
+                    )
+                else:
+                    banner = (
+                        "[#8b949e]GPU detection:[/] "
+                        "[#d29922]nvidia-smi not available — showing all snapshots[/]"
+                    )
+                yield Static(banner, classes="arch-detect-line", id="arch-banner")
+
+                # Bucket active configs by architecture, then render in
+                # detected-arch-first order so the user sees the cards
+                # that match their hardware before the others.
+                buckets: dict[str, list] = {
+                    ARCH_BLACKWELL: [],
+                    ARCH_AMPERE:    [],
+                    ARCH_UNKNOWN:   [],
+                }
+                for c in active:
+                    buckets.setdefault(config_arch(c), buckets[ARCH_UNKNOWN]).append(c)
+
+                # Order: detected arch first, then the other known arch,
+                # then anything classed as Universal/unknown. When the
+                # host is itself unknown we fall back to ampere-first
+                # because that's the default zip.
+                if detected == ARCH_BLACKWELL:
+                    arch_order = [ARCH_BLACKWELL, ARCH_AMPERE, ARCH_UNKNOWN]
+                elif detected == ARCH_AMPERE:
+                    arch_order = [ARCH_AMPERE, ARCH_BLACKWELL, ARCH_UNKNOWN]
+                else:
+                    arch_order = [ARCH_AMPERE, ARCH_BLACKWELL, ARCH_UNKNOWN]
+
+                first_section = True
+                for a in arch_order:
+                    cards_for_arch = buckets.get(a) or []
+                    if not cards_for_arch:
+                        continue
+                    if first_section and a == detected:
+                        title_color = "#58a6ff"
+                        title = f"[b {title_color}]Recommended for your {ARCH_LABEL[a]} GPU[/]"
+                    else:
+                        title_color = "#8b949e"
+                        title = f"[b {title_color}]{ARCH_LABEL[a]} configs[/]"
+                    yield Static(title, classes="arch-section-title")
+                    with Grid(classes="cards-grid") as g:
+                        g.styles.grid_size_rows = max(1, (len(cards_for_arch) + 2) // 3)
+                        for c in cards_for_arch:
+                            card = ConfigCard(c, is_running=False, id=f"card-{c.id}")
+                            self.cards[c.id] = card
+                            yield card
+                    first_section = False
 
                 if legacy:
                     yield Static("[b #d29922]Legacy[/]", classes="legacy-section-title")

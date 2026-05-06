@@ -292,6 +292,7 @@ windows:
       tagline: 5090 fast all-around (240k ctx, MTP n=6)
       tier: active
       status: recommended
+      arch: blackwell
       bat: '${SNAPSHOTS_DIR}\start_5090.bat'
       py:  '${SNAPSHOTS_DIR}\start_5090.py'
       gpu: GPU0
@@ -332,6 +333,7 @@ windows:
       tagline: 5090 max-ctx (280k single card, MTP n=3)
       tier: active
       status: recommended
+      arch: blackwell
       bat: '${SNAPSHOTS_DIR}\start_5090_max.bat'
       py:  '${SNAPSHOTS_DIR}\start_5090_max.py'
       gpu: GPU0

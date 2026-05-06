@@ -5,6 +5,7 @@ from textual.widgets import Static
 from rich.text import Text
 
 from ..config import WinConfig, LinuxConfig
+from ..gpu_arch import ARCH_LABEL, ARCH_COLOR, config_arch
 
 STATUS_DOT = {
     "running":     ("●", "#3fb950"),
@@ -44,6 +45,8 @@ class ConfigCard(Static):
     ConfigCard.-running { border-left: thick #3fb950; }
     ConfigCard.-blocked { border-left: thick #f85149; }
     ConfigCard.-legacy  { border-left: thick #d29922; }
+    ConfigCard.-arch-blackwell { border-top: solid #7fb3ff; }
+    ConfigCard.-arch-ampere    { border-top: solid #ffbb7f; }
     """
 
     can_focus = True
@@ -55,13 +58,21 @@ class ConfigCard(Static):
         self._refresh_classes()
 
     def _refresh_classes(self) -> None:
-        self.remove_class("-running", "-blocked", "-legacy")
+        self.remove_class("-running", "-blocked", "-legacy",
+                          "-arch-blackwell", "-arch-ampere")
         if self.running:
             self.add_class("-running")
         elif self.cfg.status == "blocked":
             self.add_class("-blocked")
         elif self.cfg.tier == "legacy":
             self.add_class("-legacy")
+        # Linux configs don't have an arch chip — only tag Windows cards.
+        if isinstance(self.cfg, WinConfig):
+            arch = config_arch(self.cfg)
+            if arch == "blackwell":
+                self.add_class("-arch-blackwell")
+            elif arch == "ampere":
+                self.add_class("-arch-ampere")
 
     def render(self):
         cfg = self.cfg
@@ -71,7 +82,17 @@ class ConfigCard(Static):
 
         t = Text()
         t.append(f"{cfg.id:<14}", style="bold #e6edf3")
-        t.append(" " * max(1, 28 - len(cfg.id)))
+        # Render an arch chip for Windows configs between id and status dot.
+        if isinstance(cfg, WinConfig):
+            arch = config_arch(cfg)
+            arch_label = ARCH_LABEL.get(arch, "")
+            arch_color = ARCH_COLOR.get(arch, "#8b949e")
+            chip_text = f" [{arch_label}] "
+            t.append(chip_text, style=f"bold {arch_color}")
+            pad = max(1, 28 - len(cfg.id) - len(chip_text))
+        else:
+            pad = max(1, 28 - len(cfg.id))
+        t.append(" " * pad)
         t.append(f"{dot} {label}", style=f"bold {color}")
         t.append("\n")
         t.append(cfg.tagline, style="italic #8b949e")
