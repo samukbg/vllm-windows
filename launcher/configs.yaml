@@ -289,9 +289,9 @@ windows:
       notes: Original 250W baseline. ~50 tok/s on 24k prompt; 72.5 on short prompts.
 
     - id: rtx5090
-      tagline: 5090 fast all-around (240k ctx, MTP n=6)
+      tagline: 5090 AutoRound INT4 (240k ctx) — alt to NVFP4 default
       tier: active
-      status: recommended
+      status: stable
       arch: blackwell
       bat: '${SNAPSHOTS_DIR}\start_5090.bat'
       py:  '${SNAPSHOTS_DIR}\start_5090.py'
@@ -339,9 +339,9 @@ windows:
         Driver 596+ required.
 
     - id: rtx5090_max
-      tagline: 5090 max-ctx (280k single card, MTP n=3)
+      tagline: 5090 max-ctx (280k single card, MTP n=3) — AutoRound only
       tier: active
-      status: recommended
+      status: stable
       arch: blackwell
       bat: '${SNAPSHOTS_DIR}\start_5090_max.bat'
       py:  '${SNAPSHOTS_DIR}\start_5090_max.py'
@@ -387,6 +387,69 @@ windows:
         the printed value.
 
         Requires the Blackwell zip. Driver 596+ required.
+
+    - id: rtx5090_nvfp4
+      tagline: 5090 NVFP4 default — full TDP prefill, ~5x AutoRound
+      tier: active
+      status: recommended
+      arch: blackwell
+      bat: '${SNAPSHOTS_DIR}\start_5090_nvfp4.bat'
+      py:  '${SNAPSHOTS_DIR}\start_5090_nvfp4.py'
+      gpu: GPU0
+      tp: 1
+      pp: 1
+      mem_util: 0.95
+      mtp_n: 6
+      ctx: 200000
+      port: 5002
+      decode_tps: 91.9
+      prefill_tps_cold: 5300
+      power_cap_w: 575
+      requires_wheel: 'vllm-0.20.0+cu132.devnen'
+      vllm_version: 0.20.0+cu132.devnen.1
+      notes: |
+        Default RTX 5090 snapshot. NVFP4 weights route FFN/QKV/proj GEMMs
+        through FlashInfer's sm_120 native FP4 tensor-core kernels
+        (autotuned fp4_gemm), escaping the 170W prefill ceiling that
+        AutoRound INT4 hits on consumer Blackwell.
+
+        Bench 2026-05-06 (cold unique-word prompts, no prefix cache hits):
+          - 24k-prompt prefill : ~7,460 tok/s @ ~580W (vs ~1,100 AutoRound)
+          - 47k-prompt prefill : ~5,300 tok/s @ ~584W (vs ~1,100 AutoRound)
+          - decode (300 tok)   : ~92 tok/s (vs ~73 AutoRound)
+          - peak SM%           : 100
+          - peak mem-BW%       : 35 (vs 0 on AutoRound — silicon now in use)
+
+        Validation 2026-05-06:
+          - Coherence (3-tier short)              : PASS
+          - Long-ctx coherence + needles
+              50k / 100k / 177k tokens            : PASS at every depth
+          - MTP acceptance @ 50k ctx              : 81.9% (4.91/6 avg)
+          - MTP acceptance @ 150k ctx             : 73.9% (4.43/6 avg)
+            (well above the 50% degraded-weight threshold)
+          - Tool-calling (qwen3_coder + reasoning)
+              + developer-role aliasing           : PASS all 3 tiers
+          - HumanEval-style coding slice
+              12/12 vs 12/12 tied with AutoRound
+            (NB: this slice is SMALL — 12 problems, all of moderate
+             difficulty. Tied 100% means we cannot resolve a small quality
+             gap; doesn't prove parity at the long tail.)
+
+        Model weights: Peutlefaire/Qwen3.6-27B-NVFP4 (HuggingFace, 20.6 GB).
+        Default location: g:\_models\Qwen3.6-27B-NVFP4 — override with
+        VLLM_NVFP4_MODEL_DIR.
+
+        First-boot warmup is slow (~9 min) because FlashInfer autotunes
+        fp4_gemm tactics for every unique GEMM shape in the model.
+        Subsequent boots cache the picks and run normal speed (~2 min).
+
+        Note: FlashInfer logs "Skipped 6 unsupported tactic(s) for
+        fp4_gemm" per shape. These are the sm_120a-suffixed tactics that
+        would need TORCH_CUDA_ARCH_LIST=12.0a in the wheel build —
+        currently the shipped wheel only has compute_120 (non-suffixed).
+        Adding 12.0a in a future wheel rebuild may unlock more headroom.
+
+        See docs/SM120_GDN_CEILING.md for the full investigation history.
 
     - id: draft
       tagline: BLOCKED — no vocab=248320 drafter

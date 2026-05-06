@@ -1,0 +1,124 @@
+{
+  "label": "nvfp4",
+  "model": "qwen3.6-27b-nvfp4",
+  "results": [
+    {
+      "size": 50000,
+      "ok": true,
+      "info": {
+        "wall_s": 78.18,
+        "prompt_tokens": 49272,
+        "completion_tokens": 600,
+        "finish": "length"
+      },
+      "grade": {
+        "degenerate_or_miss": false,
+        "issues": [],
+        "needles": [
+          {
+            "needle": 0,
+            "ok": true,
+            "hits": [
+              "quentin",
+              "1987"
+            ],
+            "want": [
+              "quentin",
+              "1987"
+            ]
+          },
+          {
+            "needle": 1,
+            "ok": true,
+            "hits": [
+              "thistledown-93-alpha"
+            ],
+            "want": [
+              "thistledown-93-alpha"
+            ]
+          }
+        ]
+      },
+      "preview": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provided a very long, repetitive text about the history of cartography.\n   - Embedded within the text are two specific \"IMPORTANT FACT TO REMEMBER\" statements:\n     - `[IMPORTANT FACT TO REMEMBER]: The blue penguin's name is Quent"
+    },
+    {
+      "size": 100000,
+      "ok": true,
+      "info": {
+        "wall_s": 148.07,
+        "prompt_tokens": 98552,
+        "completion_tokens": 600,
+        "finish": "length"
+      },
+      "grade": {
+        "degenerate_or_miss": false,
+        "issues": [],
+        "needles": [
+          {
+            "needle": 0,
+            "ok": true,
+            "hits": [
+              "quentin",
+              "1987"
+            ],
+            "want": [
+              "quentin",
+              "1987"
+            ]
+          },
+          {
+            "needle": 1,
+            "ok": true,
+            "hits": [
+              "thistledown-93-alpha"
+            ],
+            "want": [
+              "thistledown-93-alpha"
+            ]
+          }
+        ]
+      },
+      "preview": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provided a very long, repetitive text about the history of cartography.\n   - Embedded within the text are two specific \"IMPORTANT FACT TO REMEMBER\" statements:\n     - `[IMPORTANT FACT TO REMEMBER]: The blue penguin's name is Quent"
+    },
+    {
+      "size": 180000,
+      "ok": true,
+      "info": {
+        "wall_s": 306.11,
+        "prompt_tokens": 177272,
+        "completion_tokens": 600,
+        "finish": "length"
+      },
+      "grade": {
+        "degenerate_or_miss": false,
+        "issues": [],
+        "needles": [
+          {
+            "needle": 0,
+            "ok": true,
+            "hits": [
+              "quentin",
+              "1987"
+            ],
+            "want": [
+              "quentin",
+              "1987"
+            ]
+          },
+          {
+            "needle": 1,
+            "ok": true,
+            "hits": [
+              "thistledown-93-alpha"
+            ],
+            "want": [
+              "thistledown-93-alpha"
+            ]
+          }
+        ]
+      },
+      "preview": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provided a very long, repetitive text about the history of cartography.\n   - Embedded within the text are two specific \"IMPORTANT FACT TO REMEMBER\" statements:\n     - `[IMPORTANT FACT TO REMEMBER]: The blue penguin's name is Quent"
+    }
+  ],
+  "overall_ok": true
+}

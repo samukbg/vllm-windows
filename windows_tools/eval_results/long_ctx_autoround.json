@@ -1,0 +1,90 @@
+{
+  "label": "autoround",
+  "model": "qwen3.6-27b-autoround",
+  "results": [
+    {
+      "size": 50000,
+      "ok": true,
+      "info": {
+        "wall_s": 153.24,
+        "prompt_tokens": 49272,
+        "completion_tokens": 458,
+        "finish": "stop"
+      },
+      "grade": {
+        "degenerate_or_miss": false,
+        "issues": [],
+        "needles": [
+          {
+            "needle": 0,
+            "ok": true,
+            "hits": [
+              "quentin",
+              "1987"
+            ],
+            "want": [
+              "quentin",
+              "1987"
+            ]
+          },
+          {
+            "needle": 1,
+            "ok": true,
+            "hits": [
+              "thistledown-93-alpha"
+            ],
+            "want": [
+              "thistledown-93-alpha"
+            ]
+          }
+        ]
+      },
+      "preview": "\n\n1. The blue penguin's name is **Quentin**, and he was born on a **Tuesday in 1987**.\n2. The secret password for the Ravenfield laboratory is **THISTLEDOWN-93-ALPHA**."
+    },
+    {
+      "size": 100000,
+      "ok": true,
+      "info": {
+        "wall_s": 479.12,
+        "prompt_tokens": 98552,
+        "completion_tokens": 458,
+        "finish": "stop"
+      },
+      "grade": {
+        "degenerate_or_miss": false,
+        "issues": [],
+        "needles": [
+          {
+            "needle": 0,
+            "ok": true,
+            "hits": [
+              "quentin",
+              "1987"
+            ],
+            "want": [
+              "quentin",
+              "1987"
+            ]
+          },
+          {
+            "needle": 1,
+            "ok": true,
+            "hits": [
+              "thistledown-93-alpha"
+            ],
+            "want": [
+              "thistledown-93-alpha"
+            ]
+          }
+        ]
+      },
+      "preview": "\n\n1. The blue penguin's name is **Quentin**, and he was born on a **Tuesday in 1987**.\n2. The secret password for the Ravenfield laboratory is **THISTLEDOWN-93-ALPHA**."
+    },
+    {
+      "size": 180000,
+      "ok": false,
+      "error": "timed out"
+    }
+  ],
+  "overall_ok": false
+}
