@@ -81,8 +81,18 @@ KV, FlashInfer, and a few Genesis patches are unavailable. What remains:
    8192 shrinks it to 2.64 GiB. Leave at 4128. (The chunked-prefill scratch
    buffer scales weirdly with this number on this wheel.)
 
-2. `--enable-chunked-prefill` and `--enable-prefix-caching` are on in every
-   shipped snapshot.
+2. `--enable-chunked-prefill` is on in every shipped snapshot.
+
+3. **`--enable-prefix-caching` is OFF in every shipped snapshot** (since 2026-05-06).
+   It is **incompatible** with Qwen3-Next's hybrid Mamba/SSM architecture
+   ([vLLM issue #17140](https://github.com/vllm-project/vllm/issues/17140)):
+   SSM state is not managed by the block manager, so prefix-cached KV blocks
+   leave Mamba state in a "dirty" mode. The observed regression on Blackwell:
+   short-prompt decode dropped 30 % after one 24 k-token request and a further
+   30 % after a second (130 → 90 → 40 tok/s, stuck). Disabling prefix caching
+   fully recovers the documented 130 tok/s short-prompt decode and stays
+   stable across mixed long/short workloads. Trade-off: warm-prefix TTFT
+   speedup is lost, but `--max-num-seqs=1` makes that a rare hit anyway.
 
 ## Context
 

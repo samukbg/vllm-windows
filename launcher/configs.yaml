@@ -10,7 +10,7 @@ windows:
     max_num_seqs: 1
     max_num_batched_tokens: 4128
     block_size: 32
-    enable_prefix_caching: true
+    enable_prefix_caching: false  # disabled: incompatible with Qwen3-Next hybrid Mamba (vLLM issue #17140) — caused 30-70% decode-tps regression after long-context requests
     enable_chunked_prefill: true
     enable_auto_tool_choice: true
     tool_call_parser: qwen3_coder

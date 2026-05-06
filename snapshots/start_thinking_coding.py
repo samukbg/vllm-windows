@@ -108,7 +108,7 @@ def main() -> int:
         "--max-num-seqs=1",
         f"--max-num-batched-tokens={MAX_NUM_BATCHED_TOKENS}",
         "--block-size=32",
-        "--enable-prefix-caching",
+        "--no-enable-prefix-caching",  # vLLM issue #17140: prefix caching is incompatible with Qwen3-Next hybrid Mamba/SSM; causes decode-tps regression after long-context requests
         "--enable-chunked-prefill",
         "--enable-auto-tool-choice",
         "--tool-call-parser=qwen3_coder",
