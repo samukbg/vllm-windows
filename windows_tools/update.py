@@ -206,28 +206,70 @@ def stop_running(root: Path) -> None:
             print(f"[update]   stop_vllm.bat returned: {e}")
 
 
+# Module-level scratch list so _on_rm_error (called per-file by shutil.rmtree)
+# can record which paths failed without changing its signature.
+_RMTREE_FAILURES: list[str] = []
+
+
 def _on_rm_error(func, path, exc_info):
-    """rmtree handler: clear read-only and retry once."""
+    """rmtree handler: clear read-only and retry once.
+
+    If the retry still fails, record the path on `_RMTREE_FAILURES` so the
+    caller can decide whether the residue is acceptable (we can copy over it
+    via `dirs_exist_ok=True`) or fatal.
+    """
     try:
         os.chmod(path, 0o700)
         func(path)
     except Exception:
-        pass
+        try:
+            _RMTREE_FAILURES.append(str(path))
+        except Exception:
+            pass
 
 
-def _rmtree_with_retry(target: Path, root: Path) -> None:
-    last_exc: BaseException | None = None
+def _rmtree_best_effort(target: Path, root: Path) -> bool:
+    """Try hard to remove `target`, but **never raise**.
+
+    `shutil.rmtree`'s `onerror` callback can mask per-file failures (a locked
+    child file or a Defender-held handle leaves the directory partially
+    populated without bubbling up). We retry a few times, killing any
+    surviving install processes between attempts, but if some residue
+    remains we return False rather than raising — the caller pairs this with
+    `shutil.copytree(..., dirs_exist_ok=True)` so a partial-clean state
+    still yields a working post-update tree.
+
+    Returns True if the directory is gone, False if some files survived.
+    """
     for attempt in range(4):
+        _RMTREE_FAILURES.clear()
         try:
             shutil.rmtree(target, onerror=_on_rm_error)
-            return
         except (PermissionError, OSError) as e:
-            last_exc = e
             print(f"[update]     rmtree {target.name} failed ({e.__class__.__name__}); "
                   f"re-killing install procs and retrying ({attempt + 1}/4)...")
             kill_install_processes(root)
             time.sleep(1.0 + attempt)
-    raise last_exc  # type: ignore[misc]
+            continue
+        if not target.exists():
+            return True
+        # Some files survived. Show a couple of names so the user can see
+        # what's locked (Defender, indexer, lingering python imports, etc.).
+        sample = ", ".join(Path(p).name for p in _RMTREE_FAILURES[:3])
+        more = f" (+{len(_RMTREE_FAILURES) - 3} more)" if len(_RMTREE_FAILURES) > 3 else ""
+        print(f"[update]     rmtree {target.name} incomplete; residual: {sample}{more}; "
+              f"re-killing install procs and retrying ({attempt + 1}/4)...")
+        kill_install_processes(root)
+        time.sleep(1.0 + attempt)
+    if target.exists():
+        print(f"[update]     rmtree {target.name} could not fully clean the directory; "
+              f"will merge new files over residual ones (dirs_exist_ok=True).")
+        return False
+    return True
+
+
+# Backwards-compatible alias for any external callers / tests.
+_rmtree_with_retry = _rmtree_best_effort
 
 
 def _unlink_with_retry(target: Path) -> None:
@@ -374,7 +416,12 @@ def replace_top_level(
             else:
                 _unlink_with_retry(target)
         if entry.is_dir():
-            shutil.copytree(entry, target)
+            # dirs_exist_ok=True is a safety net: if a child file was locked
+            # and rmtree couldn't fully clear the target, we still merge new
+            # files in rather than crashing with FileExistsError. Combined
+            # with the rmtree-with-retry above, this gives defense in depth
+            # against partial-update states.
+            shutil.copytree(entry, target, dirs_exist_ok=True)
         else:
             shutil.copy2(entry, target)
     return n, deferred

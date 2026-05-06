@@ -42,7 +42,7 @@ MODEL_PATH = os.environ.get(
 
 SERVED_NAME = "qwen3.6-27b-nvfp4"
 HOST = "0.0.0.0"
-PORT = 5002  # don't collide with the AutoRound baseline on 5001
+PORT = 5001  # canonical default port; mutually exclusive with other 5090 snapshots
 
 # ---- Parallelism ------------------------------------------------------------
 TP = 1

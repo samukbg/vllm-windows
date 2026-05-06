@@ -11,9 +11,13 @@ Single landing page for everything Blackwell. If you have an RTX 5060,
    **Not** the default zip — the default is for 30/40-series only.
 2. Make sure your NVIDIA driver is **596 or newer** (CUDA 13 is
    required). `nvidia-smi` shows the driver version.
-3. Extract anywhere, double-click `start.bat`, pick a 5090 snapshot
-   — `rtx5090` (240k ctx, default — fastest decode and prefill) or
-   `rtx5090_max` (280k ctx, when you need >240k).
+3. Extract anywhere, double-click `start.bat`, pick a 5090 snapshot:
+   - **`rtx5090_nvfp4`** (200k ctx, **NVFP4 weights, default since v1.3.0** —
+     escapes the 170W prefill ceiling, ~5x faster prefill than AutoRound).
+     Requires the NVFP4 weights at `g:\_models\Qwen3.6-27B-NVFP4` (or set
+     `VLLM_NVFP4_MODEL_DIR`); the launcher does not auto-download these yet.
+   - `rtx5090` (240k ctx, AutoRound INT4 — alternative when you need >200k ctx).
+   - `rtx5090_max` (280k ctx, AutoRound INT4 — for the largest contexts).
 
 That's it. The launcher autodetects the bundled wheel as a CUDA 13
 build and installs the right torch index (cu130) plus a runtime shim
@@ -39,16 +43,21 @@ recommended path for non-Blackwell users.
 
 ## What's verified
 
-End-to-end on a single RTX 5090 (driver 596.36, sm_120, 32 GB) on
-2026-05-05:
+End-to-end on a single RTX 5090 (driver 596.36, sm_120, 32 GB):
 
 | Check | Result |
 |---|---|
-| Wheel boots, model loads | yes; ~17 s to load 17 GB AutoRound INT4 |
+| Wheel boots, model loads | yes; ~17 s to load 17 GB AutoRound INT4, ~25 s for 20 GB NVFP4 |
 | `/v1/chat/completions`, `/v1/messages`, `/v1/responses` | yes |
 | Marlin sm_120 + AutoRound INT4 | works; Marlin selects `MarlinLinearKernel` for `GPTQMarlinLinearMethod` on first load. The `scalar_types.int4` Marlin sm_120 bug from older vLLM versions is **fixed** in 0.20.0. |
-| TP=1 + MTP n=6 | works |
-| Decode tok/s | **158.1 tok/s** on `rtx5090` (ctx 240k, MTP n=6, mem_util 0.95, 200-token completion, median of 3 runs at 575W). Long-prompt 24k decode 107.8 tok/s, 24k prefill 3,100–3,300 tok/s. (Earlier 500W baseline was 124.9 / 89.3 / 2796.) |
+| FlashInfer `fp4_gemm` + NVFP4 (compressed-tensors) | works; autotuner selects sm_120 native FP4 tactics. First boot is slow (~9 min, autotuning per GEMM shape); subsequent boots cache picks. |
+| TP=1 + MTP n=6 | works on both AutoRound and NVFP4 |
+| AutoRound decode tok/s | **158.1 tok/s** on `rtx5090` (ctx 240k, MTP n=6, mem_util 0.95, 200-token completion, median of 3 runs at 575W). Long-prompt 24k decode 107.8 tok/s, 24k prefill 3,100–3,300 tok/s. AutoRound prefill on long unique-word prompts is power-capped at ~170W on consumer Blackwell (see [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md)). |
+| **NVFP4 prefill tok/s** | **~7,460 tok/s @ 24k** and **~5,300 tok/s @ 47k** on `rtx5090_nvfp4` (full TDP, ~580W, peak mem-BW 35%). 5–7x AutoRound. Sidesteps the 170W ceiling by routing FFN GEMMs through FlashInfer's sm_120 native FP4 tensor cores. |
+| **NVFP4 decode tok/s** | ~92 tok/s (300-token completion, MTP n=6). +25% vs AutoRound on the same hardware. |
+| **NVFP4 long-ctx coherence + needle retrieval** | PASS at 50k / 100k / 177k tokens (both needles retrieved at every depth). |
+| **NVFP4 MTP acceptance** | 81.9% @ 50k ctx (4.91/6 avg), 73.9% @ 150k ctx (4.43/6 avg) — well above the 50% degraded-weight threshold. |
+| **NVFP4 vs AutoRound coding parity** | Tied 12/12 on a 12-problem HumanEval-style slice (small slice — see caveat in [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md); confirms no catastrophic regression, does not prove long-tail parity). |
 | CUDA 13 toolkit on host | **not required**. The launcher copies torch's bundled `cudart64_13.dll`, `cublas64_13.dll`, etc. from `venv\Lib\site-packages\torch\lib\` into a writable `cuda13_shim\bin\` and points `CUDA_PATH` there so flashinfer's import-time `CDLL` succeeds. |
 
 ## What's NOT yet validated on Blackwell
@@ -93,18 +102,41 @@ to `ampere` for anything that doesn't start with `rtx5090`.
 
 ## The 5090 snapshots
 
-The Blackwell zip ships two single-card 5090 snapshots, both GPU0,
-port 5001, attention backend TRITON_ATTN, KV dtype fp8_e4m3, with a
-randomised `--data-parallel-rpc-port` (see "RPC port leak" below)
-and **no** `VLLM_ATTENTION_BACKEND` env var (deprecated in 0.20.0;
-the CLI flag still works):
+The Blackwell zip ships three single-card 5090 snapshots, all GPU0,
+port 5001 (mutually exclusive — pick one), attention backend
+TRITON_ATTN, KV dtype fp8_e4m3, with a randomised
+`--data-parallel-rpc-port` (see "RPC port leak" below) and **no**
+`VLLM_ATTENTION_BACKEND` env var (deprecated in 0.20.0; the CLI flag
+still works):
+
+**`rtx5090_nvfp4` is the new default since v1.3.0.** It uses NVFP4
+weights ([`Peutlefaire/Qwen3.6-27B-NVFP4`](https://huggingface.co/Peutlefaire/Qwen3.6-27B-NVFP4),
+~20.6 GB) and routes FFN/QKV/proj GEMMs through FlashInfer's sm_120
+native FP4 tensor cores. This bypasses the 170W prefill ceiling that
+AutoRound INT4 hits on consumer Blackwell — the GDN linear-attention
+layers are still slow for their 10/40 layer share, but FFN dominates
+prefill FLOPs and is now firing at full 575W. Set `VLLM_NVFP4_MODEL_DIR`
+to point at the weights directory; default location is
+`g:\_models\Qwen3.6-27B-NVFP4`. **First boot is slow** (~9 min while
+FlashInfer autotunes `fp4_gemm` per GEMM shape); subsequent boots cache
+the picks and start in ~2 min. See
+[`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md) for the full
+prefill-ceiling investigation, validation matrix, and the eval-slice
+caveat on quality vs AutoRound.
+
+**`rtx5090` and `rtx5090_max` remain available** as the AutoRound INT4
+alternates. Use them when you need >200k context (the NVFP4 snapshot
+ships at 200k due to NVFP4 KV-cache footprint), or when you want to
+use the same Lorbus weights you already have on disk for the Ampere/Ada
+zip.
 
 **Bench 2026-05-06 (v1.2.3, 575W power cap, `--no-enable-prefix-caching` shipped from v1.2.2, median of 3 × 200-token short runs).** v1.2.5 re-enables prefix caching (vLLM PR #25752 / Mamba2 APC in the wheel auto-applies `mamba_cache_mode='align'`); see the v1.2.5 notes below the table.
 
-| Snapshot      | ctx  | MTP n | mem_util | Short decode | 24k decode | 24k prefill | Use it when |
-|---------------|------|-------|----------|--------------|------------|-------------|-------------|
-| `rtx5090`     | 240k | 6     | 0.95     | **158.1 tok/s** | **107.8 tok/s** | 3,100–3,300 tok/s | Default — fastest both axes, 240k context covers almost every workload. |
-| `rtx5090_max` | 280k | 3     | 0.95     | 154.3 tok/s     | 90.2 tok/s      | 3,100–3,300 tok/s | When you need >240k context (entire codebase, full transcript). 4% slower short decode, 16% slower long decode. |
+| Snapshot           | ctx  | MTP n | mem_util | Short/300-tok decode | 24k prefill | 47k prefill | Use it when |
+|--------------------|------|-------|----------|---------------------|-------------|-------------|-------------|
+| `rtx5090_nvfp4`    | 200k | 6     | 0.95     | **~92 tok/s**       | **~7,460 tok/s @ 580W** | **~5,300 tok/s @ 584W** | **Default since v1.3.0.** Full TDP prefill via FlashInfer sm_120 native FP4. ~5x AutoRound prefill, ~25% faster decode. Quality tied with AutoRound on a small coding slice (see eval caveat). |
+| `rtx5090`          | 240k | 6     | 0.95     | **158.1 tok/s** (24k decode 107.8) | 3,100–3,300 tok/s | n/a (170W cap) | AutoRound alternative. 240k context. Higher short-decode tok/s than NVFP4 due to MTP acceptance pattern, but prefill capped at ~170W on long unique-word prompts. |
+| `rtx5090_max`      | 280k | 3     | 0.95     | 154.3 tok/s (24k decode 90.2)      | 3,100–3,300 tok/s | n/a (170W cap) | AutoRound alternative for >240k context. 4% slower short decode than `rtx5090`, 16% slower long decode. |
 
 (Earlier 500W baseline was 124.9 / 138.0 short decode. The 500W → 575W cap lift adds ~20–30% short decode and ~10–20% long-prompt decode.)
 

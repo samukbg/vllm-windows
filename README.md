@@ -306,13 +306,18 @@ covered in [`docs/WINDOWS_VRAM_HEADLESS.md`](docs/WINDOWS_VRAM_HEADLESS.md).
 > the Blackwell zip.** Download
 > `qwen3.6-windows-server-portable-x64-blackwell.zip` instead of the
 > default zip. It bundles `vllm-0.20.0+cu132.devnen.1` against CUDA 13.2
-> / PyTorch cu130 with `sm_120` kernels. Verified end-to-end on a single
-> RTX 5090 at 575W: **158.1 decode tok/s** on `rtx5090` (ctx 240k,
-> MTP n=6) and **154.3 tok/s** on `rtx5090_max` (ctx 280k, MTP n=3) —
-> both verified single-card, with 24k-prompt prefill ~3,200 tok/s.
-> Two 5090 snapshots ship: `rtx5090` (240k, default) and `rtx5090_max`
-> (280k). NVIDIA driver 596+ required. See
-> [`docs/BLACKWELL.md`](docs/BLACKWELL.md) for the full story.
+> / PyTorch cu130 with `sm_120` kernels. **v1.3.0 ships NVFP4 as the new
+> default** (`rtx5090_nvfp4`, port 5001) using the
+> [`Peutlefaire/Qwen3.6-27B-NVFP4`](https://huggingface.co/Peutlefaire/Qwen3.6-27B-NVFP4)
+> weights — these route FFN GEMMs through FlashInfer's sm_120 native
+> FP4 tensor cores, escaping the 170W prefill ceiling that AutoRound INT4
+> hits on consumer Blackwell. Measured on a single RTX 5090 at 575W:
+> **~5,300 tok/s prefill @ 47k prompt (5x AutoRound), ~92 tok/s decode**
+> at 200k context. AutoRound INT4 snapshots (`rtx5090`, `rtx5090_max`)
+> still ship as alternatives for the 240k/280k context profiles. NVIDIA
+> driver 596+ required. See [`docs/BLACKWELL.md`](docs/BLACKWELL.md) for
+> the full story and [`docs/SM120_GDN_CEILING.md`](docs/SM120_GDN_CEILING.md)
+> for the prefill-ceiling investigation.
 
 If you're on a 4090, expect slightly higher numbers than mine. If
 you're on something more exotic, nothing here is going to work without
@@ -368,7 +373,7 @@ inside this launcher's portable zip.
 - [`docs/COHERENCE.md`](docs/COHERENCE.md), degenerate-output guide and the 3-tier validator.
 - [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md), every failure mode I've hit.
 - [`docs/TUNING.md`](docs/TUNING.md), the lever set, anti-levers, how to sweep your own configs.
-- [`docs/MTP_HEAD.md`](docs/MTP_HEAD.md), why Lorbus AutoRound is the only INT4 quant that works.
+- [`docs/MTP_HEAD.md`](docs/MTP_HEAD.md), why Lorbus AutoRound is the only INT4 quant that works (the NVFP4 weights ship a separate MTP head and are documented in [`docs/BLACKWELL.md`](docs/BLACKWELL.md) and [`docs/SM120_GDN_CEILING.md`](docs/SM120_GDN_CEILING.md)).
 - [`docs/SPEC_DECODE_MATRIX.md`](docs/SPEC_DECODE_MATRIX.md), what spec-decode + parallelism combos work.
 - [`docs/SNAPSHOTS.md`](docs/SNAPSHOTS.md), managing snapshots from inside the TUI: keyboard shortcuts, the CRUD editor, flag invariants, hand-edit fallback.
 - [`docs/WINDOWS_VRAM_HEADLESS.md`](docs/WINDOWS_VRAM_HEADLESS.md), free VRAM on Windows for single-GPU.
@@ -392,7 +397,7 @@ won't be merged.
 
 Configs I'd love to see:
 
-- Other Qwen3.6-27B quants (FP8, NVFP4, smaller AutoRound variants)
+- Other Qwen3.6-27B quants (FP8, additional NVFP4 variants, smaller AutoRound variants)
 - Smaller Qwen models (14B, 8B, 4B) for 16 GB cards
 - 4090 / 5090 / 5060 Ti / A6000 tunings
 - New parallelism or KV-cache combos as vLLM adds them
@@ -407,5 +412,6 @@ out of scope, please go upstream.
 
 - [vLLM](https://github.com/vllm-project/vllm), the engine.
 - [SystemPanic/vllm-windows](https://github.com/SystemPanic/vllm-windows), the upstream Windows wheel build infrastructure.
-- [Lorbus](https://huggingface.co/Lorbus), the AutoRound INT4 quant of Qwen3.6-27B that makes any of this fast.
+- [Lorbus](https://huggingface.co/Lorbus), the AutoRound INT4 quant of Qwen3.6-27B that makes the Ampere/Ada path fast.
+- [Peutlefaire](https://huggingface.co/Peutlefaire), the NVFP4 quant that unlocks consumer Blackwell's full prefill throughput on the 5090.
 - [r/LocalLLaMA](https://www.reddit.com/r/LocalLLaMA/), the configs in here started from recipes posted on the subreddit, and got refined by the honest feedback in the comments.
