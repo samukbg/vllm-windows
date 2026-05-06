@@ -293,11 +293,12 @@ covered in [`docs/WINDOWS_VRAM_HEADLESS.md`](docs/WINDOWS_VRAM_HEADLESS.md).
 > `qwen3.6-windows-server-portable-x64-blackwell.zip` instead of the
 > default zip. It bundles `vllm-0.20.0+cu132.devnen.1` against CUDA 13.2
 > / PyTorch cu130 with `sm_120` kernels. Verified end-to-end on a single
-> RTX 5090: **130.9 decode tok/s** on `rtx5090_speed` (ctx 120k, MTP
-> n=6) and **138.0 tok/s** on `rtx5090_max` (ctx 280k, MTP n=3) — both
-> verified single-card. Three 5090 snapshots ship: `rtx5090_speed` (120k),
-> `rtx5090` (240k), `rtx5090_max` (280k). NVIDIA driver 596+ required.
-> See [`docs/BLACKWELL.md`](docs/BLACKWELL.md) for the full story.
+> RTX 5090 at 575W: **158.1 decode tok/s** on `rtx5090` (ctx 240k,
+> MTP n=6) and **154.3 tok/s** on `rtx5090_max` (ctx 280k, MTP n=3) —
+> both verified single-card, with 24k-prompt prefill ~3,200 tok/s.
+> Two 5090 snapshots ship: `rtx5090` (240k, default) and `rtx5090_max`
+> (280k). NVIDIA driver 596+ required. See
+> [`docs/BLACKWELL.md`](docs/BLACKWELL.md) for the full story.
 
 If you're on a 4090, expect slightly higher numbers than mine. If
 you're on something more exotic, nothing here is going to work without

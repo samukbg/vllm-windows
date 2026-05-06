@@ -12,8 +12,8 @@ Single landing page for everything Blackwell. If you have an RTX 5060,
 2. Make sure your NVIDIA driver is **596 or newer** (CUDA 13 is
    required). `nvidia-smi` shows the driver version.
 3. Extract anywhere, double-click `start.bat`, pick a 5090 snapshot
-   — `rtx5090_speed` (120k ctx, fastest), `rtx5090` (200k ctx,
-   balanced), or `rtx5090_max` (280k ctx).
+   — `rtx5090` (240k ctx, default — fastest decode and prefill) or
+   `rtx5090_max` (280k ctx, when you need >240k).
 
 That's it. The launcher autodetects the bundled wheel as a CUDA 13
 build and installs the right torch index (cu130) plus a runtime shim
@@ -48,7 +48,7 @@ End-to-end on a single RTX 5090 (driver 596.36, sm_120, 32 GB) on
 | `/v1/chat/completions`, `/v1/messages`, `/v1/responses` | yes |
 | Marlin sm_120 + AutoRound INT4 | works; Marlin selects `MarlinLinearKernel` for `GPTQMarlinLinearMethod` on first load. The `scalar_types.int4` Marlin sm_120 bug from older vLLM versions is **fixed** in 0.20.0. |
 | TP=1 + MTP n=6 | works |
-| Decode tok/s | **130.9 tok/s** on `rtx5090_speed` (ctx 120k, MTP n=6, mem_util 0.95, 39-token prompt, 300-token completion). 24k-prompt prefill ~2700 tok/s, sustained decode ~89 tok/s. KV pool 80k–95k tokens, max concurrency 2.0–2.4×. |
+| Decode tok/s | **158.1 tok/s** on `rtx5090` (ctx 240k, MTP n=6, mem_util 0.95, 200-token completion, median of 3 runs at 575W). Long-prompt 24k decode 107.8 tok/s, 24k prefill 3,100–3,300 tok/s. (Earlier 500W baseline was 124.9 / 89.3 / 2796.) |
 | CUDA 13 toolkit on host | **not required**. The launcher copies torch's bundled `cudart64_13.dll`, `cublas64_13.dll`, etc. from `venv\Lib\site-packages\torch\lib\` into a writable `cuda13_shim\bin\` and points `CUDA_PATH` there so flashinfer's import-time `CDLL` succeeds. |
 
 ## What's NOT yet validated on Blackwell
@@ -78,22 +78,33 @@ Blackwell zip on it, run the `pp2_160k` snapshot, and post numbers.
 
 ## The 5090 snapshots
 
-The Blackwell zip ships three single-card 5090 snapshots, all GPU0,
-all port 5001, all attention backend TRITON_ATTN, all KV dtype
-fp8_e4m3, all with a randomised `--data-parallel-rpc-port` (see
-"RPC port leak" below) and **no** `VLLM_ATTENTION_BACKEND` env var
-(deprecated in 0.20.0; the CLI flag still works):
+The Blackwell zip ships two single-card 5090 snapshots, both GPU0,
+port 5001, attention backend TRITON_ATTN, KV dtype fp8_e4m3, with a
+randomised `--data-parallel-rpc-port` (see "RPC port leak" below)
+and **no** `VLLM_ATTENTION_BACKEND` env var (deprecated in 0.20.0;
+the CLI flag still works):
 
-| Snapshot         | ctx  | MTP n | mem_util | Short decode | 24k decode | 24k prefill | Use it when |
-|------------------|------|-------|----------|--------------|------------|-------------|-------------|
-| `rtx5090_speed`  | 120k | 6     | 0.95     | **130.9 tok/s** | ~89 tok/s  | ~2700 tok/s | Default — 120k is enough for almost everything and you want max decode and 2× KV concurrency for batching. |
-| `rtx5090`        | 240k | 6     | 0.95     | 124.9 tok/s     | 89.3 tok/s | 2796 tok/s  | Balanced: bigger ctx than `_speed`, MTP n=6 still on. v1.2.1 upgrade replaces the v1.2.0 200k/0.93 build. |
-| `rtx5090_max`    | 280k | 3     | 0.95     | **138.0 tok/s** | 81.0 tok/s | 2818 tok/s  | Largest single-card context. n=3 frees KV-pool budget so 280k still fits with MTP on. Edges out n=6 on short prompts. |
+**Bench 2026-05-06 (v1.2.3, 575W power cap, `--no-enable-prefix-caching` shipped from v1.2.2, median of 3 × 200-token short runs):**
 
-All three beat every 3090 snapshot on context size at the same MTP n.
+| Snapshot      | ctx  | MTP n | mem_util | Short decode | 24k decode | 24k prefill | Use it when |
+|---------------|------|-------|----------|--------------|------------|-------------|-------------|
+| `rtx5090`     | 240k | 6     | 0.95     | **158.1 tok/s** | **107.8 tok/s** | 3,100–3,300 tok/s | Default — fastest both axes, 240k context covers almost every workload. |
+| `rtx5090_max` | 280k | 3     | 0.95     | 154.3 tok/s     | 90.2 tok/s      | 3,100–3,300 tok/s | When you need >240k context (entire codebase, full transcript). 4% slower short decode, 16% slower long decode. |
+
+(Earlier 500W baseline was 124.9 / 138.0 short decode. The 500W → 575W cap lift adds ~20–30% short decode and ~10–20% long-prompt decode.)
+
+Both beat every 3090 snapshot on context size at the same MTP n.
+
+**Why only two profiles?** v1.2.0–v1.2.2 also shipped `rtx5090_speed`
+(120k, MTP n=6) as the headline "speed" config. The 575W re-bench
+showed it ties `rtx5090` on short decode (158 vs 158), is slower on
+long decode (103 vs 108), and has a reproducible long-prompt prefill
+regression (~343 tok/s vs ~3,200 for the other two). Same MTP +
+chunked-prefill flags — cause not root-caused. Removed in v1.2.3
+because it offers no inference advantage.
 
 If you want a different combo, `e` on the dashboard opens the
-snapshot editor. Duplicate any of the three, edit, save. The launcher
+snapshot editor. Duplicate either snapshot, edit, save. The launcher
 rewrites both the YAML and the `.py` for you.
 
 ## Driver and toolkit requirements
@@ -206,7 +217,7 @@ shipped tool-calling fixes.
 If you bench the Blackwell zip, please post:
 
 - GPU model + driver version (`nvidia-smi --query-gpu=name,driver_version --format=csv`)
-- Snapshot id (`rtx5090_speed`, `rtx5090`, `rtx5090_max`, or your custom one)
+- Snapshot id (`rtx5090`, `rtx5090_max`, or your custom one)
 - Output of `windows_tools\check_coherence.py --port 5001` (decode
   tok/s without coherence is meaningless)
 - Output of `windows_tools\bench_summarize.py` (a single TSV row

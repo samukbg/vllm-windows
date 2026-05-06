@@ -96,8 +96,8 @@ update.bat --variant ampere
 
 Variant switching keeps your `user_config.json`, `models\`, and
 `launcher\configs.yaml` (with the prompt) intact. The shipped
-`rtx5090_speed`, `rtx5090`, and `rtx5090_max` snapshots will still be
-in `launcher\configs.yaml` after switching to ampere, but they won't
+`rtx5090` and `rtx5090_max` snapshots will still be in
+`launcher\configs.yaml` after switching to ampere, but they won't
 show up on the dashboard if no 50-series card is detected; harmless.
 You can delete them from the snapshot editor (`e` on the dashboard)
 if you want a clean list.

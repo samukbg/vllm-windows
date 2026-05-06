@@ -20,24 +20,39 @@ KV, FlashInfer, and a few Genesis patches are unavailable. What remains:
    shifts:
 
    ```
-   ctx 120k MTP n=6 (rtx5090_speed) -> short 130.9 / 24k decode ~89 tok/s
+   500W power cap (v1.2.0–v1.2.2 baseline, three snapshots shipped):
+   ctx 120k MTP n=6 (rtx5090_speed) -> short 130.9 / 24k decode ~89  tok/s   [retired in v1.2.3]
    ctx 240k MTP n=6 (rtx5090)       -> short 124.9 / 24k decode  89.3 tok/s
    ctx 280k MTP n=3 (rtx5090_max)   -> short 138.0 / 24k decode  81.0 tok/s
+
+   575W power cap (v1.2.3 re-bench, --no-enable-prefix-caching, two snapshots):
+   ctx 240k MTP n=6 (rtx5090)       -> short 158.1 / 24k decode 107.8 / 24k prefill 3,100-3,300
+   ctx 280k MTP n=3 (rtx5090_max)   -> short 154.3 / 24k decode  90.2 / 24k prefill 3,100-3,300
    ```
 
-   **Two surprises** on Blackwell that don't show on Ampere:
+   **Why two snapshots, not three.** v1.2.3 retired `rtx5090_speed`.
+   The 575W re-bench showed it tied `rtx5090` on short decode (158 vs
+   158) but was slower on long decode (103 vs 108) AND had a
+   reproducible long-prompt prefill regression (~343 tok/s vs ~3,200
+   for the other two). Same MTP n=6 + chunked-prefill flags — cause
+   not yet root-caused, but the practical conclusion was that it
+   offered no inference advantage and a real prefill loss.
 
-   - On **short prompts**, MTP n=3 actually edges out n=6 (138.0 vs
-     130.9) because the 5090's higher memory bandwidth makes wasted
-     draft tokens cheaper than the cudagraph-replay overhead n=6 adds.
-     n=6 still wins on long prompts (89.3 vs 81.0), so n=6 remains
-     the default for the balanced and speed configs.
-   - **Bigger ctx does NOT slow decode at fixed MTP** the way it does
-     on Ampere — going 120k → 240k at MTP n=6 costs 5–6 short-prompt
-     tok/s but is *equal* on long-prompt decode. The Blackwell KV-pool
-     attention bandwidth has more headroom than Ampere's. We have not
-     yet swept n=4 / n=5 / n=7 on the 5090; conventional wisdom from
-     the 3090 sweep suggests n=6 is still the long-prompt peak.
+   **Three Blackwell observations from the 575W re-bench:**
+
+   - **Power cap matters for decode** on Blackwell — 500W → 575W adds
+     ~20-30% short decode and ~10-20% long decode. (On Ampere the
+     equivalent 250→350W bump moved only prefill, never decode, because
+     decode was bandwidth-bound. Blackwell evidently has compute
+     headroom even at batch=1.) If your PSU and cooling can handle it,
+     the cap pays out.
+   - **MTP n=3 vs n=6 short-prompt advantage flips** with power. At
+     500W n=3 edged out n=6 (138 vs 131); at 575W n=6 wins (158 vs 154).
+     The "n=3 sweet spot for short prompts" claim is power-cap-dependent.
+   - **Bigger ctx does NOT slow decode at fixed MTP** on Blackwell.
+     The 240k snapshot lands the headline 158 tok/s short-decode number.
+     The 280k snapshot is close behind (154) only because its MTP is
+     n=3, not n=6.
 
 2. **Power cap.** 250 W → 350 W: prefill +16 %, decode unchanged (decode
    is memory-bandwidth-bound at batch=1 / max-num-seqs=1). If you want
