@@ -195,6 +195,120 @@ def stop_running(root: Path) -> None:
             print(f"[update]   stop_vllm.bat returned: {e}")
 
 
+def _on_rm_error(func, path, exc_info):
+    """rmtree handler: clear read-only and retry once."""
+    try:
+        os.chmod(path, 0o700)
+        func(path)
+    except Exception:
+        pass
+
+
+def _rmtree_with_retry(target: Path, root: Path) -> None:
+    last_exc: BaseException | None = None
+    for attempt in range(4):
+        try:
+            shutil.rmtree(target, onerror=_on_rm_error)
+            return
+        except (PermissionError, OSError) as e:
+            last_exc = e
+            print(f"[update]     rmtree {target.name} failed ({e.__class__.__name__}); "
+                  f"re-killing install procs and retrying ({attempt + 1}/4)...")
+            kill_install_processes(root)
+            time.sleep(1.0 + attempt)
+    raise last_exc  # type: ignore[misc]
+
+
+def _unlink_with_retry(target: Path) -> None:
+    for attempt in range(4):
+        try:
+            target.unlink()
+            return
+        except (PermissionError, OSError):
+            time.sleep(0.5 + attempt * 0.5)
+    target.unlink()  # final attempt, raise
+
+
+def _path_under(child: str, parent: Path) -> bool:
+    if not child:
+        return False
+    try:
+        c = os.path.normcase(os.path.normpath(child))
+        p = os.path.normcase(os.path.normpath(str(parent)))
+    except Exception:
+        return False
+    sep = os.sep
+    return c == p or c.startswith(p + sep)
+
+
+def list_install_processes(root: Path) -> list[tuple[int, str]]:
+    """Return [(pid, exe_path), ...] for every running process whose
+    ExecutablePath sits inside `root`. PowerShell + CIM (wmic is deprecated)."""
+    ps_cmd = (
+        "$ErrorActionPreference='SilentlyContinue';"
+        "Get-CimInstance Win32_Process | "
+        "Where-Object { $_.ExecutablePath } | "
+        "Select-Object ProcessId, ExecutablePath | "
+        "ConvertTo-Json -Compress"
+    )
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd],
+            capture_output=True, text=True, timeout=30,
+        )
+    except Exception as e:
+        print(f"[update] WARNING: process enum failed: {e}")
+        return []
+    if out.returncode != 0:
+        print(f"[update] WARNING: powershell rc={out.returncode}: "
+              f"{(out.stderr or '').strip()[:200]}")
+        return []
+    raw = (out.stdout or "").strip()
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    if isinstance(data, dict):
+        data = [data]
+    found: list[tuple[int, str]] = []
+    for entry in data:
+        pid = entry.get("ProcessId")
+        exe = entry.get("ExecutablePath") or ""
+        if pid is None or not exe:
+            continue
+        if _path_under(exe, root):
+            found.append((int(pid), exe))
+    return found
+
+
+def kill_install_processes(root: Path) -> None:
+    """Force-kill every process running from inside `root`, except this
+    process and its parent (the launching cmd.exe). Runs twice to catch
+    children that respawn between sweeps (e.g. EngineCore from APIServer)."""
+    own = os.getpid()
+    parent = os.getppid() if hasattr(os, "getppid") else 0
+    exclude = {own, parent, 0}
+
+    print("[update] scanning for processes running from install root...")
+    for attempt in (1, 2):
+        procs = list_install_processes(root)
+        targets = [(pid, exe) for pid, exe in procs if pid not in exclude]
+        if not targets:
+            if attempt == 1:
+                print("[update]   none found.")
+            return
+        print(f"[update]   killing {len(targets)} process(es) (sweep {attempt}):")
+        for pid, exe in targets:
+            print(f"[update]     pid={pid}  {exe}")
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                capture_output=True, timeout=10,
+            )
+        time.sleep(1.5)
+
+
 def _python_dir_locked(root: Path) -> bool:
     """True if the running interpreter sits inside <root>/python/."""
     try:
@@ -245,9 +359,9 @@ def replace_top_level(
             continue
         if target.exists():
             if target.is_dir() and not target.is_symlink():
-                shutil.rmtree(target)
+                _rmtree_with_retry(target, root)
             else:
-                target.unlink()
+                _unlink_with_retry(target)
         if entry.is_dir():
             shutil.copytree(entry, target)
         else:
@@ -265,34 +379,33 @@ set "STAGE={STAGE}"
 set "PARENT_PID={PARENT_PID}"
 set "AUTO_LAUNCH={AUTO_LAUNCH}"
 
-REM Wait up to 30s for the parent updater process to exit.
-for /L %%i in (1,1,60) do (
-    tasklist /FI "PID eq !PARENT_PID!" 2>nul | findstr /B /C:"python" >nul
-    if errorlevel 1 goto parent_gone
-    >nul ping 127.0.0.1 -n 2
-)
-:parent_gone
+REM Wait up to 60s for the parent updater process to exit, in a single
+REM hidden powershell call so we don't flash a console window every 2s
+REM polling tasklist + findstr.
+powershell -NoProfile -NonInteractive -WindowStyle Hidden -Command ^
+    "$p = Get-Process -Id %PARENT_PID% -ErrorAction SilentlyContinue;" ^
+    "if ($p) { try { $p.WaitForExit(60000) | Out-Null } catch {} }" ^
+    "Start-Sleep -Milliseconds 1500" >nul 2>&1
 
-REM Slack so DLL handles fully release.
->nul ping 127.0.0.1 -n 3
-
-echo [finalize] swapping python\ ...
+REM No interactive prompts: this runs in a hidden console with no user
+REM attached. Errors are written to _update_finalize.log next to the bat
+REM so a failed swap can be diagnosed after the fact.
+set "LOG=%ROOT%\_update_finalize.log"
+echo [finalize] swapping python\ ... > "%LOG%"
 set "OLD=%ROOT%\python.old.%RANDOM%"
-move /Y "%ROOT%\python" "%OLD%" >nul
+move /Y "%ROOT%\python" "%OLD%" >nul 2>>"%LOG%"
 if errorlevel 1 (
-    echo [finalize] ERROR: could not move %ROOT%\python aside.
-    pause
+    echo [finalize] ERROR: could not move %ROOT%\python aside. >> "%LOG%"
     exit /b 1
 )
-move /Y "%STAGE%" "%ROOT%\python" >nul
+move /Y "%STAGE%" "%ROOT%\python" >nul 2>>"%LOG%"
 if errorlevel 1 (
-    echo [finalize] ERROR: could not move new python\ into place. Reverting.
-    move /Y "%OLD%" "%ROOT%\python" >nul
-    pause
+    echo [finalize] ERROR: could not move new python\ into place. Reverting. >> "%LOG%"
+    move /Y "%OLD%" "%ROOT%\python" >nul 2>>"%LOG%"
     exit /b 1
 )
 rd /S /Q "%OLD%" 2>nul
-echo [finalize] python\ replaced.
+echo [finalize] python\ replaced. >> "%LOG%"
 
 if /I "%AUTO_LAUNCH%"=="1" (
     if exist "%ROOT%\start.bat" (
@@ -314,17 +427,21 @@ def write_and_spawn_finalizer(
     """Write a finalize.bat next to start.bat that swaps python/ in place
     once we exit, then spawn it detached."""
     bat = root / "_update_finalize.bat"
-    body = FINALIZE_BAT.format(
-        ROOT=str(root),
-        STAGE=str(stage),
-        PARENT_PID=os.getpid(),
-        AUTO_LAUNCH="1" if auto_launch else "0",
+    body = (
+        FINALIZE_BAT
+        .replace("{ROOT}", str(root))
+        .replace("{STAGE}", str(stage))
+        .replace("{PARENT_PID}", str(os.getpid()))
+        .replace("{AUTO_LAUNCH}", "1" if auto_launch else "0")
     )
     bat.write_text(body, encoding="ascii", newline="\r\n")
-    DETACHED_PROCESS = 0x00000008
+    # CREATE_NO_WINDOW alone (no DETACHED_PROCESS): the parent cmd.exe gets a
+    # hidden console that child console apps (powershell, move) inherit, so
+    # they don't flash their own console windows. CREATE_NEW_PROCESS_GROUP
+    # detaches it from the updater's Ctrl-C signal group.
     CREATE_NEW_PROCESS_GROUP = 0x00000200
     CREATE_NO_WINDOW = 0x08000000
-    flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
+    flags = CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
     subprocess.Popen(
         ["cmd", "/c", str(bat)],
         cwd=str(root),
@@ -437,6 +554,7 @@ def main() -> int:
             return 0
 
     stop_running(root)
+    kill_install_processes(root)
 
     with tempfile.TemporaryDirectory(prefix="qwen36-update-") as td:
         tmp = Path(td)
