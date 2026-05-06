@@ -59,8 +59,9 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 const BASE_URL = process.env.QWEN_LOCAL_URL ?? "http://127.0.0.1:5001/v1";
 // Match this to the --max-model-len of the snapshot you are running.
-// start_speed = 90000, start_127k / unsloth_127k_* = 127000,
-// pp2_160k = 160000, start_gpu0_50k = 50000.
+// Ampere/Ada zip: start_speed = 90000, start_127k / unsloth_127k_* =
+// 127000, pp2_160k = 160000, start_gpu0_50k = 50000.
+// Blackwell zip: rtx5090 = 240000, rtx5090_max = 280000.
 const CONTEXT_WINDOW = Number(process.env.QWEN_LOCAL_CTX ?? 90000);
 
 export default function (pi: ExtensionAPI) {

@@ -103,9 +103,17 @@ caveat we can't reasonably validate. The ergonomics aren't worth the
 support cost.
 
 For other models, point the launcher at an existing local directory
-(`VLLM_MODEL_DIR` env var, `--model-dir` CLI flag, or the in-TUI
-model-picker), and download with `huggingface-cli` or
-`snapshot_download` separately.
+in any of three ways (all of which the dashboard reflects in the
+header banner):
+
+- `VLLM_MODEL_DIR` env var before launch.
+- `--model-dir <path>` CLI flag on `start.bat`.
+- The in-TUI model-dir picker (added in v1.0). The dashboard prints
+  a `[model] using <path>  (source: env|saved-config|default|drive-scan)`
+  line on every boot so you can see which one was picked.
+
+Download the weights with `huggingface-cli` or `snapshot_download`
+separately.
 
 ## Related
 

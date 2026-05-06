@@ -61,9 +61,11 @@ No proxy, no LiteLLM, no translation layer.
    }
    ```
 
-   Adjust `"context"` to match your snapshot's `--max-model-len`:
-   `start_72tps` 32000, `start_speed` 90000, `start_127k`/Unsloth
-   tunes 127000, `start_pp2_160k` 160000, `start_gpu0_50k` 50000.
+   Adjust `"context"` to match your snapshot's `--max-model-len`. On
+   the Ampere/Ada zip: `start_72tps` 32000, `start_speed` 90000,
+   `start_127k` / Unsloth tunes 127000, `start_pp2_160k` 160000,
+   `start_gpu0_50k` 50000. On the Blackwell zip: `rtx5090` 240000,
+   `rtx5090_max` 280000.
    You can also drop this file in your project root as `opencode.json`
    to override per-repo.
 

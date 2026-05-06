@@ -74,9 +74,11 @@ Settings → Environment Variables, or drop them into a per-project
 
 ## Step 3: launch a server snapshot, then Qwen Code
 
-From this launcher, pick a snapshot. `start_speed` (90 k ctx) and
-`start_127k` (127 k ctx) are good defaults for code work. Wait until
-the log shows `Application startup complete.`.
+From this launcher, pick a snapshot. On the Ampere/Ada zip,
+`start_speed` (90 k ctx) and `start_127k` (127 k ctx) are good
+defaults for code work. On the Blackwell zip, `rtx5090` (240 k ctx)
+is the default and `rtx5090_max` (280 k ctx) covers whole-codebase
+sessions. Wait until the log shows `Application startup complete.`.
 
 Then in any project directory:
 

@@ -42,6 +42,24 @@ desync them.
 | `r` | Refresh (re-read configs.yaml from disk) |
 | `q` | Quit |
 
+Since v1.2.4 the dashboard shells out to `nvidia-smi` at startup,
+classifies the host as `blackwell` (RTX 50-series), `ampere` (RTX
+30/40-series + datacentre A/L), or `unknown`, and uses that to:
+
+- Show a banner at the top of the snapshots pane with the detected
+  GPU and arch bucket.
+- Group active cards into arch sections, putting the host's
+  architecture first under a `Recommended for your <Arch> GPU`
+  header (blue) and the other arch underneath under a neutral header.
+- Tag every card with an arch chip (`[Blackwell]` blue, `[Ampere/Ada]`
+  orange) plus a colored top border.
+
+The arch bucket is read from the optional `arch:` key on each entry
+in `configs.yaml`. The shipped `rtx5090*` snapshots are explicitly
+tagged `arch: blackwell`. Anything else falls through a heuristic
+(`id` starts with `rtx5090` -> blackwell, otherwise ampere), so
+existing user snapshots don't need editing.
+
 ### Detail screen (one snapshot)
 
 | Key | Action |
@@ -147,6 +165,7 @@ change between configs. This is the full set:
 | Prefill tok/s cold | yaml | Cold-cache prefill, optional. |
 | Power cap | yaml | Watts, optional. |
 | Notes | yaml | Free text. Multi-line is fine. |
+| Arch | yaml (`arch:`) | Optional. `blackwell` or `ampere`. Drives dashboard grouping and the colored chip on each card. Defaults to a heuristic if missing (id starts with `rtx5090` -> blackwell, otherwise ampere). |
 
 Anything else (attention backend, KV dtype, chat template path, env
 vars, etc.) is a flag invariant and is not editable through the form

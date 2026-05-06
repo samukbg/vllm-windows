@@ -26,25 +26,58 @@ recent CUDA driver. Won't work on Pascal/Turing/Intel Arc/AMD.
 1. Disk check. Ensure >= 40 GB free on the INSTALL_DIR drive (model is
    ~16 GB, runtime is ~5 GB, plus pip cache + temp).
 
-2. Create INSTALL_DIR if missing. Use the GitHub API to find the latest
-   release zip URL, don't hardcode a tag, the project ships fixes
-   regularly:
+2. Detect the GPU arch so you pick the right zip. Two zips ship per
+   release:
 
+   - `qwen3.6-windows-server-portable-x64.zip` for Ampere / Ada
+     (RTX 3090 / 4090 / A6000, sm_86 / sm_89).
+   - `qwen3.6-windows-server-portable-x64-blackwell.zip` for Blackwell
+     (RTX 5060 / 5070 / 5080 / 5090, sm_120). The default zip lacks
+     sm_120 kernels and dies at boot with
+     `cudaErrorNoKernelImageForDevice` on a 50-series card.
+
+   Quick way to choose:
+
+      nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -1
+
+   `12.0` -> Blackwell zip. `8.6` / `8.9` -> default zip.
+
+3. Create INSTALL_DIR if missing. Use the GitHub API to find the latest
+   release zip URL for the matching variant, don't hardcode a tag, the
+   project ships fixes regularly:
+
+      # default (Ampere/Ada) zip
       curl -sL https://api.github.com/repos/devnen/qwen3.6-windows-server/releases/latest \
         | grep -oE '"browser_download_url": *"[^"]*portable-x64\.zip"' \
+        | head -1 | cut -d'"' -f4
+
+      # Blackwell zip
+      curl -sL https://api.github.com/repos/devnen/qwen3.6-windows-server/releases/latest \
+        | grep -oE '"browser_download_url": *"[^"]*portable-x64-blackwell\.zip"' \
         | head -1 | cut -d'"' -f4
 
    Download that zip into INSTALL_DIR, then `unzip -q` it. Result: a
    `qwen3.6-windows-server\` subfolder containing `start.bat`,
    `python\`, `wheels\`, `launcher\`, etc.
 
-3. Launch headlessly. The launcher is a Textual TUI by default but has
+4. Pick a snapshot to launch. Snapshot ids depend on the zip variant:
+
+   - **Default (Ampere/Ada) zip:** `start_72tps` for short-prompt
+     headless 3090/4090/A6000, `start_gpu0_50k` if the card also drives
+     a display.
+   - **Blackwell zip:** `rtx5090` for the default 240k-context profile,
+     `rtx5090_max` for the 280k variant. These work on any sm_120
+     card; on a 5060 / 5070 / 5080 the smaller VRAM may force you to
+     drop context, but the snapshot ids are the same.
+
+5. Launch headlessly. The launcher is a Textual TUI by default but has
    full CLI flags. From bash, you must invoke the .bat through
    `cmd.exe` with an absolute path, relative paths and bare `start.bat`
-   don't resolve across the bash->cmd boundary:
+   don't resolve across the bash->cmd boundary. Substitute the snapshot
+   id you picked in step 4:
 
       cmd.exe //c 'C:\absolute\path\to\qwen3.6-windows-server\start.bat \
-        --auto-download --snapshot start_72tps --yes' \
+        --auto-download --snapshot <SNAPSHOT_ID> --yes' \
         > "$INSTALL_DIR/launcher.log" 2>&1 &
 
    Flag notes:
@@ -118,8 +151,13 @@ recent CUDA driver. Won't work on Pascal/Turing/Intel Arc/AMD.
   there with exact fixes.
 - Do not try to "fix" things by editing files inside the extracted
   release. Re-download is faster and produces a known state.
-- For single-GPU hosts where GPU 0 has the desktop attached, swap
-  `--snapshot start_72tps` for `--snapshot start_gpu0_50k`.
+- For single-GPU hosts on the default zip where GPU 0 has the desktop
+  attached, swap `--snapshot start_72tps` for `--snapshot start_gpu0_50k`.
+- On the Blackwell zip both `rtx5090` and `rtx5090_max` already use
+  `mem_util=0.95` and tolerate a typical desktop tax on a 32 GB 5090.
+  If a smaller Blackwell card OOMs at boot, lower `--max-model-len` in
+  the snapshot before retrying (vLLM prints the safe ceiling in the
+  error).
 
 Report back when all three success criteria hold, with: the tag that was
 installed, the model directory the launcher picked (from the

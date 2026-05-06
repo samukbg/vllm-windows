@@ -21,7 +21,78 @@ Portable Windows launcher for Qwen3.6-27B inference. Unzip, double-click `start.
 3. Extract anywhere, no admin needed, **including `Program Files` / `Program Files (x86)`**.
 4. Double-click `start.bat`. On first run the launcher auto-discovers existing weights or offers to download Lorbus/Qwen3.6-27B-int4-AutoRound from Hugging Face (~16 GB, public, no token).
 
-## What's new in v1.2.3 — Blackwell zip restored, release pipeline hardened
+## What's new in v1.2.4, arch-aware dashboard and full docs refresh
+
+Two user-visible launcher changes plus a sweep across every doc that
+still talked like the project was Ampere-only.
+
+### Arch-aware dashboard
+
+The launcher now shells out to `nvidia-smi` at startup and classifies
+the host as `blackwell` (RTX 50-series), `ampere` (RTX 30/40 + datacentre
+A/L cards), or `unknown`. The Windows dashboard uses that to:
+
+- Show a banner at the top of the snapshots pane with the detected GPU
+  and arch bucket.
+- Group active cards into arch sections, putting the host's architecture
+  first under a blue `Recommended for your <Arch> GPU` header and the
+  other arch under a neutral header below.
+- Tag every Windows config card with an arch chip (`[Blackwell]` blue
+  or `[Ampere/Ada]` orange) plus a colored top border, so you can tell
+  at a glance which build a snapshot targets.
+
+The bucket is read from a new optional `arch:` key on each entry in
+`launcher/configs.yaml`. The two `rtx5090*` snapshots are tagged
+explicitly. Existing user snapshots keep working without edits via a
+heuristic (id starts with `rtx5090` -> blackwell, otherwise ampere).
+
+### `rtx5090_speed` retired
+
+The 575W re-bench in v1.2.3 found that `rtx5090_speed` (120k, MTP n=6)
+tied `rtx5090` on short decode (158 vs 158), was slower on long decode
+(103 vs 108), and had a reproducible long-prompt prefill regression
+(~343 tok/s vs ~3,200 for the other two snapshots). Same flag set.
+Cause not root-caused but the snapshot offered no inference advantage
+and a real prefill loss, so it's gone in v1.2.4. Two Blackwell snapshots
+ship now: `rtx5090` (240k, default) and `rtx5090_max` (280k).
+
+### Docs refresh
+
+Across every doc that still treated the 0.19.0 / Ampere zip as the
+only path:
+
+- `docs/AGENT_INSTALL_PROMPT.md`: agent now picks the right zip
+  (Ampere/Ada vs Blackwell) by reading `nvidia-smi compute_cap`, then
+  picks the right snapshot id for the variant. Old prompt told the
+  agent to launch `start_72tps`, which doesn't exist on the Blackwell
+  zip.
+- `docs/CLAUDE_CODE.md`, `OPENCODE.md`, `QWEN_CLI.md`, `PI.md`: each
+  client doc now lists Blackwell snapshot ids and context windows
+  alongside the Ampere ones.
+- `docs/MTP_HEAD.md`: the "MTP + PP is broken" framing was still
+  hard-coded to vLLM 0.19.0. Now flagged as Ampere-zip behaviour with
+  Blackwell-zip status marked TBD.
+- `docs/TUNING.md`: the "bigger ctx slows decode" lever was 3090-only
+  and silently contradicted `BLACKWELL.md` (where bigger ctx is free
+  at fixed MTP n). Cross-reference added.
+- `docs/HARDWARE.md`: Tested section now lists both reference rigs
+  (2x 3090 + 1x 5090). Power-cap section adds the 575W 5090 numbers
+  and notes that decode itself moves with power on Blackwell, unlike
+  the 3090 where 250 -> 350W only moved prefill.
+- `docs/TROUBLESHOOTING.md`: pruned the v0.1.13 -> v0.1.17 hot-fix
+  cascade rows that no current user will hit. Top of doc now says
+  "if you're on a v0.1.x release, run update.bat".
+- `docs/HALLUCINATED_FLAGS.md`: table now has an "Affects" column
+  marking each row as Ampere-zip, Blackwell-zip, or both. Added the
+  async-scheduling-toggle row for 0.20.
+- `docs/MODELS.md`: documents the in-TUI model-dir picker added in v1.0.
+- `docs/SNAPSHOTS.md` and `docs/BLACKWELL.md`: document the new arch
+  banner and card grouping.
+
+If you maintain a fork or custom snapshots, run `update.bat` and the
+docs/launcher come along; your `configs.yaml` is preserved by default.
+
+## What's new in v1.2.3, Blackwell zip restored, release pipeline hardened
 
 v1.2.2 shipped Ampere-only because the Blackwell wheel had never been
 published in `devnen/vllm-windows`'s release — the CI silently produced one

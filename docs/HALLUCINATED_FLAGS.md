@@ -30,23 +30,27 @@ answer either way. Asynchronous scheduling is on by default in 0.20.0
 `VLLM_USE_V1_SCHEDULER` or similar to enable it is talking about 0.19
 and is now a no-op.
 
-## Confirmed-fictional / wrong-version on the 0.19.0 wheel
+## Confirmed-fictional / wrong-version on this wheel
 
-| Flag / env var | What you'll find online | Reality on this wheel |
-|---|---|---|
-| `VLLM_FLASHINFER_FORCE_TENSOR_CORES` | "set this for free perf" | Does not exist. |
-| `VLLM_USE_FLASH_ATTN_3` | "FA3 is way faster on Hopper+" | Does not exist on 0.19.0. |
-| `--decode-threshold` | "tune speculative threshold" | Does not exist. |
-| `--scheduler-delay-mult` | "for streaming throughput" | Does not exist. |
-| `--cuda-graph-sizes` | Used in copy-paste recipes | Wrong name. The flag is `--cudagraph-capture-sizes` (no hyphen between cuda and graph). |
-| `--kv-cache-dtype=int8` | Suggested by ppx | Not accepted. TRITON_ATTN takes only `auto` (BF16), `fp8`, `fp8_e4m3`. |
-| `--kv-cache-dtype=NVFP4` / `MXFP4` | Late-2025 vLLM features | Not in 0.19.0. |
-| `--kv-cache-dtype=turboquant_3bit_nc` | Genesis patches blog posts | Not in 0.19.0; needs the Genesis tree which hasn't been Windows-ported. |
-| `--kv-cache-dtype=fp8_e5m2` | Older Linux recipes | Rejected by TRITON_ATTN with `only accepts {"fp8","fp8_e4m3"}`. Use `fp8_e4m3`. |
-| `VLLM_ATTENTION_BACKEND` env var | "set this and you're done" | The env var is *ignored* on 0.19.0. Pass `--attention-backend=TRITON_ATTN` as a CLI arg instead. (Set the env var too if you like, only the CLI matters.) |
-| `--enable-turboquant` | Turbo project flags | Not in this wheel. |
-| `--cpu-offload-gb` | "for big models" | Exists but extends *batch capacity*, not *per-sequence ctx*. With `max-num-seqs=1` it does nothing useful. |
-| `--swap-space` | Same | Same, batch capacity, not ctx. |
+The "Both" column means the verdict applies to both the Ampere/Ada zip
+(0.19.0+devnen.1) and the Blackwell zip (0.20.0+cu132.devnen.1).
+
+| Flag / env var | What you'll find online | Reality on this wheel | Affects |
+|---|---|---|---|
+| `VLLM_FLASHINFER_FORCE_TENSOR_CORES` | "set this for free perf" | Does not exist. | Both |
+| `VLLM_USE_FLASH_ATTN_3` | "FA3 is way faster on Hopper+" | Does not exist on 0.19.0. Not benched on 0.20. | Both |
+| `--decode-threshold` | "tune speculative threshold" | Does not exist. | Both |
+| `--scheduler-delay-mult` | "for streaming throughput" | Does not exist. | Both |
+| `--cuda-graph-sizes` | Used in copy-paste recipes | Wrong name. The flag is `--cudagraph-capture-sizes` (no hyphen between cuda and graph). | Both |
+| `--kv-cache-dtype=int8` | Suggested by ppx | Not accepted. TRITON_ATTN takes only `auto` (BF16), `fp8`, `fp8_e4m3`. | Both |
+| `--kv-cache-dtype=NVFP4` / `MXFP4` | Late-2025 vLLM features | Not in 0.19.0 and not in the 0.20.0 base we ship. | Both |
+| `--kv-cache-dtype=turboquant_3bit_nc` | Genesis patches blog posts | Needs the Genesis tree which hasn't been Windows-ported on either wheel. | Both |
+| `--kv-cache-dtype=fp8_e5m2` | Older Linux recipes | Rejected by TRITON_ATTN with `only accepts {"fp8","fp8_e4m3"}`. Use `fp8_e4m3`. | Both |
+| `VLLM_ATTENTION_BACKEND` env var | "set this and you're done" | Silently ignored on 0.19.0. On 0.20.0 it warns `Unknown vLLM environment variable`. Pass `--attention-backend=TRITON_ATTN` as a CLI arg either way. | Both |
+| `--enable-turboquant` | Turbo project flags | Not in this wheel. | Both |
+| `--cpu-offload-gb` | "for big models" | Exists but extends *batch capacity*, not *per-sequence ctx*. With `max-num-seqs=1` it does nothing useful. | Both |
+| `--swap-space` | Same | Same, batch capacity, not ctx. | Both |
+| `VLLM_USE_V1_SCHEDULER` (or asking to "enable async scheduling") | Older 0.19 recipes | Async scheduling was opt-in on 0.19, then **on by default in 0.20**. Setting the var on 0.20 is a no-op. | Both |
 
 ## Anti-levers, exist but measured to be no-ops or worse on this wheel
 

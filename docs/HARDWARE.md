@@ -27,11 +27,27 @@ runtime shim.
 
 ## Tested
 
+Two reference rigs.
+
+**Ampere (original launch rig):**
+
 - Windows 10 Enterprise 22H2, 19044.x
-- 2× NVIDIA RTX 3090, 24 GB each, Ampere sm_86, no NVLink, PCIe Gen 4 ×16
+- 2× NVIDIA RTX 3090, 24 GB each, sm_86, no NVLink, PCIe Gen 4 ×16
 - Power cap up to 350 W per card (250 W also benchmarked, see TUNING.md)
-- 256 GB DDR4 (model weights stream from disk, RAM hardly matters)
-- Models live on a separate NVMe; no measurable load-time difference vs system disk
+- 256 GB DDR4
+- Headline: 64.5 tok/s on `start_speed`, 90 k ctx, single-card decode
+
+**Blackwell (current dev rig as of 2026-05-06):**
+
+- Windows 10 Enterprise 22H2
+- 1× NVIDIA RTX 5090, 32 GB, sm_120, driver 596.36
+- Power cap 575 W (500 W also benchmarked, see TUNING.md / BLACKWELL.md)
+- Headline: 158.1 tok/s on `rtx5090`, 240 k ctx, MTP n=6
+- The 0.20.0 wheel ships from this box; the 0.19.0 / Ampere zip is
+  still the recommended path for non-Blackwell users.
+
+Models live on a separate NVMe; no measurable load-time difference vs
+the system disk on either rig.
 
 ## Should work, untested
 
@@ -242,13 +258,25 @@ assignment, or set the `CUDA_VISIBLE_DEVICES` env var before launching.
 
 ## Power cap
 
-We measured 250 W → 350 W on these cards:
+**3090 (Ampere):** 250 W → 350 W:
 - Prefill: 845 → 983 tok/s (+16 %)
 - Decode: unchanged (decode is memory-bandwidth-bound at batch=1)
 
-Default snapshots assume 350 W. Set with `nvidia-smi -pl 350`. **Don't
-exceed your PSU's headroom**, two 3090s at 350 W draw ~750 W from the
-12V rails alone before CPU and the rest. We're using a 1300 W Gold PSU.
+Default Ampere/Ada snapshots assume 350 W. Set with `nvidia-smi -pl 350`.
+**Don't exceed your PSU's headroom**, two 3090s at 350 W draw ~750 W from
+the 12V rails alone before CPU and the rest. The launch rig used a 1300 W
+Gold PSU.
+
+**5090 (Blackwell):** 500 W → 575 W on `rtx5090` (240k, MTP n=6):
+- Short decode: 124.9 → 158.1 tok/s (+27 %)
+- 24k-token decode: 89.3 → 107.8 tok/s (+21 %)
+- 24k-token prefill: ~2,800 → 3,100–3,300 tok/s (+10–18 %)
+
+Unlike the 3090, **decode itself moves with power on Blackwell**. The
+5090 has compute headroom even at batch=1 / max-num-seqs=1, so the
+bandwidth-bound assumption no longer holds. If your PSU and cooling
+allow it, the 575 W cap pays out. The default `rtx5090*` snapshots
+assume 575 W. Drop to 500 W if your PSU is tight.
 
 ## Tensor vs pipeline parallelism
 

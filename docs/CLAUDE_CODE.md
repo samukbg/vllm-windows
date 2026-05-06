@@ -61,6 +61,13 @@ the box without per-snapshot tweaking.
 
 ## Which snapshot to pick
 
+Snapshot ids depend on which zip you installed (Ampere/Ada vs Blackwell).
+The dashboard tags every card with `[Blackwell]` or `[Ampere/Ada]` and
+groups them by your detected GPU since v1.2.4, so the right ones float
+to the top automatically.
+
+**Ampere / Ada zip (RTX 3090, 4090, A6000):**
+
 | Use case | Snapshot | Port |
 |---|---|---|
 | Daily Claude Code on a 3090 with no display attached | `start_speed` | 5001 |
@@ -68,6 +75,13 @@ the box without per-snapshot tweaking.
 | Long Claude Code sessions that need 127k context | `start_127k` | 5001 |
 | Single GPU, display attached | `start_gpu0_50k` | 5001 |
 | Need 160k context, have 2 GPUs | `start_pp2_160k` | 5002 |
+
+**Blackwell zip (RTX 5060, 5070, 5080, 5090):**
+
+| Use case | Snapshot | Port |
+|---|---|---|
+| Daily Claude Code on a 5090, default | `rtx5090` (240k ctx) | 5001 |
+| Need >240k context for whole-codebase sessions | `rtx5090_max` (280k ctx) | 5001 |
 
 If you change the port, update `ANTHROPIC_BASE_URL` to match.
 

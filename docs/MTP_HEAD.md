@@ -52,19 +52,29 @@ If you want to try a different 27B quant with MTP:
 3. **Run the launcher's coherence check** with MTP on, watch the
    acceptance rate. If it's near zero, the quant's head is unusable.
 
-## Why you can't have MTP and PP at the same time
+## Why you can't have MTP and PP at the same time (Ampere/Ada zip)
 
-`Qwen3_5MTP` worker init refuses pipeline parallelism on Qwen3-Next:
+On the Ampere/Ada zip (vLLM 0.19.0+devnen.1), `Qwen3_5MTP` worker init
+refuses pipeline parallelism on Qwen3-Next:
 
 ```
 NotImplementedError: Pipeline parallelism is not supported for this model
 ```
 
-This is a vLLM 0.19.0 limitation, not a hardware one. It means: pick MTP
-*or* PP (for big context), not both. We chose MTP for the speed snapshots
-and added a separate PP=2 snapshot for the rare 160 k-context case. See
-[`SPEC_DECODE_MATRIX.md`](SPEC_DECODE_MATRIX.md) for the full compatibility
-table.
+This is a vLLM 0.19.0 limitation, not a hardware one. On that zip you
+pick MTP *or* PP (for big context), not both. The shipped snapshots
+use MTP for the speed configs and a separate PP=2 snapshot for the
+rare 160 k-context case.
+
+On the Blackwell zip (vLLM 0.20.0+cu132.devnen.1) this row has not
+been re-tested yet. The block may or may not be fixed upstream. The
+single-card 5090 path doesn't need PP at all (one card already serves
+240–280 k context with MTP), so there's been no pressure to bench it.
+If you have a multi-card Blackwell host and try `pp2_160k` there,
+please post numbers in a GitHub issue.
+
+See [`SPEC_DECODE_MATRIX.md`](SPEC_DECODE_MATRIX.md) for the full
+compatibility table.
 
 ## Why not INT8 27B
 

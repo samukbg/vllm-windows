@@ -76,6 +76,21 @@ not been re-tested on the 0.20 wheel that ships in the Blackwell zip:
 If you have a 2× 5090 box or a 5090 + 3090 box, please boot the
 Blackwell zip on it, run the `pp2_160k` snapshot, and post numbers.
 
+## Dashboard auto-grouping
+
+Since v1.2.4 the launcher detects the host GPU at startup, prints a
+banner with the architecture, and groups the snapshot cards by arch.
+On a Blackwell box the `rtx5090` and `rtx5090_max` cards float to the
+top under a blue `Recommended for your Blackwell GPU` header, and the
+3090-era cards drop below under a neutral header. Each card gets a
+`[Blackwell]` or `[Ampere/Ada]` chip and a colored top border so you
+can tell at a glance which build a snapshot targets.
+
+`configs.yaml` carries the truth via an optional `arch:` key per
+entry; the two `rtx5090*` snapshots are tagged explicitly. Existing
+user snapshots keep working with no edits, the heuristic falls back
+to `ampere` for anything that doesn't start with `rtx5090`.
+
 ## The 5090 snapshots
 
 The Blackwell zip ships two single-card 5090 snapshots, both GPU0,

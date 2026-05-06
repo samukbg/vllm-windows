@@ -59,11 +59,19 @@ KV, FlashInfer, and a few Genesis patches are unavailable. What remains:
    decode speed, more power doesn't help; if you want short-prompt TTFT,
    it does.
 
-3. **Bigger ctx slows decode at fixed MTP.** Measured at MTP n=6:
-   ctx=90 k → 64.5, ctx=112 k → 60.4 (–6 %). Likely KV-pool memory
-   bandwidth during attention. If a snapshot doesn't need the full ctx
-   headroom, don't pay for it, split into a "speed" snapshot (smaller
-   ctx) and a "max-ctx" snapshot. We have both.
+3. **Bigger ctx slows decode at fixed MTP (3090 / Ampere only).**
+   Measured at MTP n=6: ctx=90 k → 64.5, ctx=112 k → 60.4 (–6 %).
+   Likely KV-pool memory bandwidth during attention. If a snapshot
+   doesn't need the full ctx headroom, don't pay for it, split into a
+   "speed" snapshot (smaller ctx) and a "max-ctx" snapshot. We have
+   both.
+
+   **This does NOT hold on Blackwell.** The 5090 re-bench at 575W
+   showed `rtx5090` (240k, MTP n=6) hits 158.1 tok/s short decode
+   while `rtx5090_max` (280k, MTP n=3) hits 154.3 tok/s. The 4 % gap
+   is the MTP n drop, not the ctx ceiling. Bigger ctx is effectively
+   free on Blackwell at fixed MTP n. See [`BLACKWELL.md`](BLACKWELL.md)
+   for the full table.
 
 4. **Cudagraphs on.** `--enforce-eager` costs ~55 % on Linux; untested on
    Windows but almost certainly similar. Don't disable.
