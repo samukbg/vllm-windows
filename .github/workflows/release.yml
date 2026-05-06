@@ -82,9 +82,25 @@ jobs:
             URL_BLACKWELL=$(echo "$ASSETS_JSON" | jq -r '.assets[] | select(.name|endswith(".whl")) | select(.name|test("\\+cu13")) | .url' | head -n1)
             NAME_BLACKWELL=$(echo "$ASSETS_JSON" | jq -r '.assets[] | select(.name|endswith(".whl")) | select(.name|test("\\+cu13")) | .name' | head -n1)
           fi
-          if [ -z "$URL_AMPERE" ] && [ -z "$URL_BLACKWELL" ]; then
-            echo "::error::No wheels resolved from devnen/vllm-windows."
-            exit 1
+          # Both wheels are mandatory unless a manual --wheel_url override was given
+          # (override is single-variant Ampere by design). Releases must ship BOTH
+          # zips — historically the Blackwell zip was uploaded by hand and CI
+          # silently produced Ampere-only when the cu13 wheel went missing
+          # upstream (see v1.2.2 incident). Fail loudly instead.
+          if [ -n "$override" ]; then
+            if [ -z "$URL_AMPERE" ]; then
+              echo "::error::wheel_url override resolved to empty Ampere URL."
+              exit 1
+            fi
+          else
+            missing=()
+            [ -z "$URL_AMPERE" ]    && missing+=("Ampere (cu126, no +cu13 tag)")
+            [ -z "$URL_BLACKWELL" ] && missing+=("Blackwell (cu13x, +cu13 tag)")
+            if [ "${#missing[@]}" -gt 0 ]; then
+              echo "::error::Required vLLM wheel(s) not found in devnen/vllm-windows latest release: ${missing[*]}"
+              echo "::error::Upload the missing wheel to that release before tagging, or rerun with workflow_dispatch + wheel_url for an Ampere-only emergency build."
+              exit 1
+            fi
           fi
           echo "url_ampere=$URL_AMPERE"       >> "$GITHUB_OUTPUT"
           echo "name_ampere=$NAME_AMPERE"     >> "$GITHUB_OUTPUT"
@@ -128,6 +144,18 @@ jobs:
             --variant blackwell \
             --wheel '${{ steps.wheel.outputs.name_blackwell }}'
 
+      - name: Create legacy Ampere alias (portable-x64.zip)
+        if: steps.wheel.outputs.name_ampere != ''
+        shell: bash
+        run: |
+          # v1.2.0/v1.2.1 update.py only knows the unsuffixed portable-x64.zip
+          # name for Ampere. Keep an alias copy so users on those versions can
+          # still auto-update past v1.2.2. The launcher repo's own updater
+          # (v1.2.3+) prefers the -ampere.zip name and falls back to legacy.
+          cp dist/qwen3.6-windows-server-portable-x64-ampere.zip \
+             dist/qwen3.6-windows-server-portable-x64.zip
+          ls -lh dist/*.zip
+
       - name: Generate SHA256SUMS.txt
         shell: bash
         run: |
@@ -138,6 +166,21 @@ jobs:
               print(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}')
           " > SHA256SUMS.txt
           cat SHA256SUMS.txt
+
+      - name: Verify both zips were built (push-tag mode)
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -f dist/qwen3.6-windows-server-portable-x64-ampere.zip ]    || missing+=("ampere")
+          [ -f dist/qwen3.6-windows-server-portable-x64-blackwell.zip ] || missing+=("blackwell")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Tag-driven release is missing zip variant(s): ${missing[*]}"
+            exit 1
+          fi
+          echo "Both portable zips built:"
+          ls -lh dist/*.zip
 
       - name: Resolve release notes
         id: notes

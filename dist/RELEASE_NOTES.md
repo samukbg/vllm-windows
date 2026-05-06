@@ -21,7 +21,24 @@ Portable Windows launcher for Qwen3.6-27B inference. Unzip, double-click `start.
 3. Extract anywhere, no admin needed, **including `Program Files` / `Program Files (x86)`**.
 4. Double-click `start.bat`. On first run the launcher auto-discovers existing weights or offers to download Lorbus/Qwen3.6-27B-int4-AutoRound from Hugging Face (~16 GB, public, no token).
 
-## What's new in v1.2.2 — important decode-tps fix
+## What's new in v1.2.3 — Blackwell zip restored, release pipeline hardened
+
+v1.2.2 shipped Ampere-only because the Blackwell wheel had never been
+published in `devnen/vllm-windows`'s release — the CI silently produced one
+zip and historical Blackwell zips were uploaded by hand. This release fixes
+the pipeline:
+
+- Blackwell wheel (`vllm-0.20.0+cu132.devnen.1`) now published in
+  [`devnen/vllm-windows`](https://github.com/devnen/vllm-windows/releases/latest)
+  alongside the Ampere wheel. CI auto-resolves both.
+- Release workflow now **fails loudly** (instead of silently producing one
+  zip) if either wheel goes missing. No more half-shipped releases.
+- v1.2.3 ships with the same prefix-caching fix as v1.2.2 (see below).
+- Updater (`update.bat`) now recognizes the `-ampere.zip` naming. Older
+  installs (v1.2.0/v1.2.1) keep working because we still publish the
+  legacy `portable-x64.zip` Ampere alias.
+
+## v1.2.2 fix carried into v1.2.3 — decode-tps regression on long-context
 
 **TL;DR:** if you ever sent a long prompt (e.g. summarising a code file) and noticed every following request was suddenly slower, **this release fixes that.** Just `update.bat`.
 

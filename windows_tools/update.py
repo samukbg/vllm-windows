@@ -110,17 +110,28 @@ def fetch_latest_release() -> dict:
 
 
 def find_zip_asset(release: dict, variant: str) -> dict | None:
+    # Accept both naming schemes:
+    #   v1.2.0/v1.2.1: -ampere.zip + -blackwell.zip + legacy unsuffixed .zip
+    #   v1.2.3+:       -ampere.zip + -blackwell.zip only
     blackwell_suffix = "portable-x64-blackwell.zip"
-    ampere_suffix = "portable-x64.zip"
+    ampere_suffixes = ("portable-x64-ampere.zip", "portable-x64.zip")
+    if variant == "blackwell":
+        for a in release.get("assets", []):
+            if a["name"].endswith(blackwell_suffix):
+                return a
+        return None
+    # ampere: prefer the explicitly-suffixed asset, fall back to legacy.
+    explicit = None
+    legacy = None
     for a in release.get("assets", []):
         name = a["name"]
-        if variant == "blackwell" and name.endswith(blackwell_suffix):
-            return a
-        if (variant == "ampere"
-                and name.endswith(ampere_suffix)
-                and not name.endswith(blackwell_suffix)):
-            return a
-    return None
+        if name.endswith(blackwell_suffix):
+            continue
+        if name.endswith("portable-x64-ampere.zip"):
+            explicit = a
+        elif name.endswith("portable-x64.zip"):
+            legacy = a
+    return explicit or legacy
 
 
 def find_sha_asset(release: dict) -> dict | None:
