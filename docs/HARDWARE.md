@@ -59,11 +59,11 @@ the system disk on either rig.
 
 We ship two release zips. The default
 `qwen3.6-windows-server-portable-x64.zip` (Ampere/Ada) bundles
-`vllm-0.19.0+devnen.1` against CUDA 12.6 / PyTorch cu126 — kernels go up
+`vllm-0.19.0+devnen.2` against CUDA 12.6 / PyTorch cu126 — kernels go up
 to sm_90, so on RTX 5060 / 5070 / 5080 / 5090 it would fail at boot with
 `cudaErrorNoKernelImageForDevice`. **Use
 `qwen3.6-windows-server-portable-x64-blackwell.zip` for any 50-series
-GPU.** That variant bundles `vllm-0.20.0+cu132.devnen.1` against CUDA
+GPU.** That variant bundles `vllm-0.20.0+cu132.devnen.2` against CUDA
 13.2 / PyTorch cu130, and the launcher auto-detects which torch index
 to install from based on the bundled wheel's filename
 (`+cu13*` → cu130).

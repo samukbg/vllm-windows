@@ -133,9 +133,12 @@ Every snapshot below has the tool-calling fix baked in (PR #35687 + #40861 + `qw
 > 0.92`, ~50 k ctx, same decode tok/s).
 
 Long-prompt rows were measured on a ~100 KB / ~24 k-token Python
-source-summary prompt (a real Windows-service module fed to
-`windows_tools\bench_summarize.py`). The short-prompt row was measured
-on a ~200-token chat turn via `windows_tools\bench.py`. All numbers
+source-summary prompt fed to `windows_tools\bench_summarize.py`. From
+v1.3.3 the shipped fixture is CPython 3.12's `Lib/inspect.py`
+(~130 KB, ~25 k tokens, PSF-licensed) so anyone can reproduce these
+numbers from a clean install — `windows_tools/bench_prompt_sample.py`
+is the file. The short-prompt row was measured on a ~200-token chat
+turn via `windows_tools\bench.py`. All numbers
 [coherence-validated](docs/COHERENCE.md), TPS without coherence is a
 lie.
 
@@ -343,7 +346,7 @@ covered in [`docs/WINDOWS_VRAM_HEADLESS.md`](docs/WINDOWS_VRAM_HEADLESS.md).
 > **RTX 50-series (Blackwell, 5060 / 5070 / 5080 / 5090): supported via
 > the Blackwell zip.** Download
 > `qwen3.6-windows-server-portable-x64-blackwell.zip` instead of the
-> default zip. It bundles `vllm-0.20.0+cu132.devnen.1` against CUDA 13.2
+> default zip. It bundles `vllm-0.20.0+cu132.devnen.2` against CUDA 13.2
 > / PyTorch cu130 with `sm_120` kernels. **v1.3.0 ships NVFP4 as the new
 > default** (`rtx5090_nvfp4`, port 5001) using the
 > [`Peutlefaire/Qwen3.6-27B-NVFP4`](https://huggingface.co/Peutlefaire/Qwen3.6-27B-NVFP4)

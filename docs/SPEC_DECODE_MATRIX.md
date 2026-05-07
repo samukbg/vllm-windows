@@ -1,9 +1,10 @@
 # Speculative-decoding × parallelism matrix
 
 What works on the SystemPanic 0.19.0 wheel + the devnen patches
-(default `qwen3.6-windows-server-portable-x64.zip`).
+(`qwen3.6-windows-server-portable-x64-ampere.zip`, current devnen tag
+`+devnen.2`).
 
-The Blackwell zip ships vLLM 0.20.0+cu132.devnen.1. The matrix below is
+The Blackwell zip ships vLLM 0.20.0+cu132.devnen.2. The matrix below is
 the 0.19 reference; 0.20 results are empirical and only partially
 validated. Confirmed on a single RTX 5090 (sm_120) on 2026-05-05:
 **TP=1 + MTP works** — Marlin sm_120 + AutoRound INT4 boots, serves,
@@ -12,12 +13,17 @@ on `rtx5090` (ctx 240k, MTP n=6, mem_util 0.95, 575W power cap, v1.2.3
 re-bench 2026-05-06). MTP-on-Blackwell sweep across n=3..n=8 is still
 TBD; the value chosen is the 3090-tuned long-prompt peak rather than
 re-swept on Blackwell.
-PP=2 + MTP
-and PP=2 + ngram have not been re-tested on 0.20 yet — the
-`Qwen3NextMTP.SupportsPP` block and the ngram drafter bug were 0.19-era
-and may or may not be fixed. NCCL is the default on Windows in 0.20
-(experimental), so TP=2 numbers may also change. Re-bench on a 2× 3090
-host running the Blackwell zip before relying on PP=2 there.
+
+**PP=2 status (2026-05-07).** The Ampere `pp2_160k` snapshot was broken
+on every release prior to v1.3.3 — the `+devnen.1` wheel didn't carry
+the Windows ZMQ ipc -> tcp swap, so PP=2 crashed at engine init with
+`ZMQError: Protocol not supported`. Fixed in `+devnen.2` (Ampere), and
+the matching `+cu132.devnen.2` Blackwell wheel carries the same fix.
+Verified clean boot, coherence, and ~10 % of documented 40.3 tok/s on
+2× RTX 3090 (Designare reference box). PP=2 + MTP / PP=2 + ngram
+remain blocked by the upstream `Qwen3NextMTP.SupportsPP` /
+`'GPUModelRunner' object has no attribute 'drafter'` bugs and have not
+been re-tested on 0.20.
 
 | Combo | Result |
 |---|---|

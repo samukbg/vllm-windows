@@ -1,5 +1,34 @@
 # Upgrading
 
+> **v1.3.3 — PP=2 fixed on Ampere, real long-prompt bench fixture.**
+> The `pp2_160k` (Both-GPU big-ctx) snapshot failed to boot on every
+> public release zip prior to v1.3.3 with
+> `ZMQError: Protocol not supported (addr='ipc://...')` because pyzmq
+> has no `ipc://` transport on Windows. New patched wheels —
+> `vllm-0.19.0+devnen.2` (Ampere, CUDA 12.6) and
+> `vllm-0.20.0+cu132.devnen.2` (Blackwell, CUDA 13.2) — add a
+> Windows-only ipc -> tcp fallback in `vllm/utils/network_utils.py`,
+> plus a worker-pipe `_ConnectionBase` widening on the Ampere wheel
+> (the Blackwell wheel inherited that piece from upstream 0.20.0).
+> PP=2 boots cleanly and decodes within ~10 % of the documented
+> 40.3 tok/s on 2× RTX 3090 (verified on a real Designare reference
+> box, 2026-05-07).
+>
+> Two more bench-side fixes:
+>
+> - `windows_tools/bench_summarize.py` now runs from a stock install
+>   without a wrapper. The embedded Python's `python312._pth` adds
+>   `..\windows_tools` so `import bench` resolves. Embedded Python
+>   ignores `cwd` and `PYTHONPATH`, so the `_pth` line is the only
+>   fix.
+> - `windows_tools/bench_prompt_sample.py` is now a real ~130 KB /
+>   ~25 k-token fixture (verbatim copy of CPython 3.12's `Lib/inspect.py`
+>   under the PSF Agreement). Replaces the 670-token stub. Documented
+>   `decode_tps` numbers are reproducible from a clean install.
+>
+> Single-GPU users see no functional change — the new wheel is a
+> strict superset of `+devnen.1`.
+
 > **v1.3.2 — Blackwell env hardening + cache-poison prevention.** A
 > hotfix for a class of slow-prefill regression that bit RTX 5090 NVFP4
 > users when system CUDA installs (or conda `cudatoolkit`) leaked into

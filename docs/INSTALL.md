@@ -8,11 +8,13 @@ For users who just want it to run.
 
 1. Open the latest [Release](../../../releases). Pick the right zip for your GPU:
    - **30-series / 40-series (Ampere, Ada):**
-     `qwen3.6-windows-server-portable-x64.zip`
-     (vLLM 0.19.0+devnen.1, CUDA 12.6 / cu126 torch). This is the default.
+     `qwen3.6-windows-server-portable-x64-ampere.zip` (or the legacy
+     unsuffixed `qwen3.6-windows-server-portable-x64.zip` alias for
+     pre-v1.2.3 auto-update compatibility — same content)
+     (vLLM 0.19.0+devnen.2, CUDA 12.6 / cu126 torch). This is the default.
    - **50-series (Blackwell — 5060/5070/5080/5090):**
      `qwen3.6-windows-server-portable-x64-blackwell.zip`
-     (vLLM 0.20.0+cu132.devnen.1, CUDA 13.2 / cu130 torch, plus an
+     (vLLM 0.20.0+cu132.devnen.2, CUDA 13.2 / cu130 torch, plus an
      auto-built CUDA 13 runtime shim). Requires NVIDIA driver 596 or
      newer. The Blackwell zip also runs on Ampere/Ada if the host has a
      CUDA 13 driver, but the default zip is the recommended path for
@@ -82,12 +84,13 @@ toolchains depending on which release line you target:
   [original instructions](https://github.com/SystemPanic/vllm-windows#building-from-source)
   verbatim. Expect 2–4 hours on a 5950X-class machine.
 - **0.20.x (Blackwell line):** CUDA 13.2, MSVC 2022, PyTorch cu130. The
-  bundled `vllm-0.20.0+cu132.devnen.1` wheel is produced from the
+  bundled `vllm-0.20.0+cu132.devnen.2` wheel is produced from the
   `vllm-for-windows-0.20.0` branch of the
   [`devnen/vllm-windows`](https://github.com/devnen/vllm-windows) engine
-  fork (3 commits on top of upstream v0.20.0: reasoning parser mirror,
-  hardwired wildcard `served-model-name` in `serving.py`, and a
-  generalized `repackage_wheel.py`). The repackage script overlays the
+  fork (4 commits on top of upstream v0.20.0: reasoning parser mirror,
+  hardwired wildcard `served-model-name` in `serving.py`, the
+  Windows ZMQ ipc -> tcp fallback in `network_utils.py` added in
+  `+devnen.2`, and a generalized `repackage_wheel.py`). The repackage script overlays the
   Python-only patches onto SystemPanic's prebuilt `vllm-0.20.0+cu132`
   wheel without re-running CMake; reach for the full source build only
   if you need to touch CUDA kernels.

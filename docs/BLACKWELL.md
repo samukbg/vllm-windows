@@ -26,12 +26,12 @@ on first boot. No CUDA Toolkit install required.
 ## Why two zips
 
 The default `qwen3.6-windows-server-portable-x64.zip` ships
-`vllm-0.19.0+devnen.1` against CUDA 12.6 / PyTorch cu126. That torch
+`vllm-0.19.0+devnen.2` against CUDA 12.6 / PyTorch cu126. That torch
 build has no `sm_120` kernels, so on Blackwell it boots cleanly to the
 first `torch.zeros` call and dies with
 `cudaErrorNoKernelImageForDevice`. There is no wheel-side workaround.
 
-The Blackwell zip ships `vllm-0.20.0+cu132.devnen.1` against CUDA 13.2
+The Blackwell zip ships `vllm-0.20.0+cu132.devnen.2` against CUDA 13.2
 / PyTorch cu130, which has `sm_120` kernels. Same launcher, same
 snapshots, different wheel.
 
