@@ -1,5 +1,35 @@
 # Upgrading
 
+> **v1.3.2 — Blackwell env hardening + cache-poison prevention.** A
+> hotfix for a class of slow-prefill regression that bit RTX 5090 NVFP4
+> users when system CUDA installs (or conda `cudatoolkit`) leaked into
+> the launch env. New `clean_cuda_env()` in `snapshots/_common.py`
+> builds the `rtx5090_nvfp4` subprocess env from scratch (drops every
+> `CUDA_*` / `NVCC_*` / `CUDNN_*` key inherited from the host, filters
+> NVIDIA-toolkit and conda `Library/bin` from PATH, pins the cu13
+> shim). New `preflight_sm120a_or_die()` 5-second probe hard-exits
+> before the 11-minute warmup if FlashInfer can't dispatch sm_120a.
+> New `windows_tools/wipe_caches.py` recovers the four caches that get
+> poisoned (`~/.cache/vllm/`, torchinductor temp, `~/.cache/torch/`,
+> `~/.cache/flashinfer/`) with mv-to-`.bak.<timestamp>` for forensics.
+> New `cache_env_stamp_check()` writes
+> `~/.cache/vllm/.env_stamp.json` and warns on mismatch.
+>
+> **If you're on v1.3.0 or v1.3.1 and saw slow prefill** (~750 tok/s
+> on a 47 k NVFP4 prompt, SM=100 %, mem-BW≈0 %, ~200 W during load),
+> the cache from before the upgrade may already be poisoned. After
+> running `update.bat`, also run **once**:
+>
+> ```powershell
+> python windows_tools\wipe_caches.py
+> ```
+>
+> Then relaunch. Cold rebuild takes ~11–25 min. Subsequent boots are
+> back to the documented 3–8 min. Full forensic write-up in
+> `_local/CACHE_POISON_INCIDENT_2026-05-07.md`. Hygiene-only edit on
+> Ampere/Ada paths; they keep the legacy `cuda_env()` semantics and
+> aren't exposed to this class of bug.
+
 > **v1.2.5 — prefix caching back on, big prefill speedup.** Re-enables
 > `--enable-prefix-caching` in all 12 snapshots. The v1.2.2-era
 > stepwise decode regression

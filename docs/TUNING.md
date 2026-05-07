@@ -104,6 +104,41 @@ KV, FlashInfer, and a few Genesis patches are unavailable. What remains:
    workload) is enough to flip the snapshot probe to `=1` automatically.
    See the README "Optional: install MSVC 2022" section.
 
+## NVFP4 first-boot autotune time (Blackwell)
+
+The `rtx5090_nvfp4` snapshot runs FlashInfer's `fp4_gemm` autotuner
+once per unique GEMM shape encountered during CUDA-graph capture and
+warmup. With MTP n=6, chunked prefill, `max_num_batched_tokens=4128`,
+ctx 200 k, that's a lot of shapes. Expected wall-clock to first
+`Application startup complete`:
+
+| State                                           | Cold-boot time |
+|-------------------------------------------------|----------------|
+| Warm cache (subsequent boots)                   | 3–8 min        |
+| Cold FlashInfer cache only                      | ~9 min         |
+| After `wipe_caches.py` (all four caches wiped)  | 11–25 min      |
+
+You will see many `[AutoTuner]: Tuning fp4_gemm: 0/13 → 13/13` cycles.
+That's expected, not a loop — each cycle is a different shape. The
+`[Autotuner]: Skipped 6 unsupported tactic(s) for fp4_gemm` line is
+also normal: those six are TMA-WS kernels gated on `compute_120f`,
+not shipped in the bundled cubin pack. The validated 5,300 tok/s
+prefill is achieved without them. See
+[`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md) for the research.
+
+If prefill collapses to ~750 tok/s on a 47 k NVFP4 prompt (SM=100 %,
+mem-BW≈0 %, ~200 W during load), the vLLM AOT compile cache was
+poisoned by an earlier polluted-env boot. Recovery is one command:
+
+```powershell
+python windows_tools\wipe_caches.py
+```
+
+Then relaunch the snapshot. v1.3.2's `clean_cuda_env()` and
+`preflight_sm120a_or_die()` prevent the original poisoning, but a
+cache populated under a pre-v1.3.2 boot can still be sticky. The full
+forensic write-up is in `_local/CACHE_POISON_INCIDENT_2026-05-07.md`.
+
 ## Prefill TPS
 
 1. **`--max-num-batched-tokens` peak is around 4128, non-monotonic.** Lowering

@@ -559,6 +559,39 @@ proves stable.
   autotuner skips 6 tactics per shape, presumably the `120a`-suffixed
   ones); a wheel rebuild adding `12.0a` to `TORCH_CUDA_ARCH_LIST` could
   unlock further headroom but is not required to escape the ceiling.
+- 2026-05-07 — **Validated 5,300 tok/s baseline reproduced after a
+  cache-poison incident.** A polluted CUDA env on a fresh test install
+  (system CUDA 12.4 on PATH ahead of the bundled cu13 shim) silently
+  bound slow FlashInfer fp4_gemm tactics into vLLM's torch-inductor AOT
+  compile cache (`~/.cache/vllm/`, 18 GB). The bad picks survived: env
+  fix, snapshot resync, FlashInfer cache wipe, and a full cold
+  re-autotune. Symptom: 750 tok/s prefill on a 47 k NVFP4 prompt at
+  ~200 W with SM=100 % / mem-BW≈0 % — the exact GDN-recurrent-spinning
+  fingerprint, but on a path that should have escaped it. Recovery
+  required wiping all four caches together (`wipe_caches.py`,
+  shipped in v1.3.2): vLLM, torch, torchinductor, flashinfer. Cold
+  rebuild took ~11 min and recovered to **5,393 tok/s @ 580 W** —
+  matching the validated baseline. Full forensics in
+  `_local/CACHE_POISON_INCIDENT_2026-05-07.md`. Confirms the 5,300
+  tok/s number is real and reproducible; not a measurement artifact.
+  v1.3.2 ships `clean_cuda_env()` and `preflight_sm120a_or_die()` so
+  the original poisoning is no longer reachable from a normal install.
+- 2026-05-07 — **Research finding on the "Skipped 6 unsupported
+  tactic(s) for fp4_gemm" line.** Those six are TMA-WS
+  (warp-specialized) grouped-GEMM kernels gated on `compute_120f`
+  (the family-wide variant), not the `compute_120a` that FlashInfer's
+  `compilation_context.py` auto-suffixes for SM≥9. NVIDIA forum thread
+  ["From 20 to 35 TPS on Qwen3-Next-NVFP4 w/ FlashInfer
+  12.1f"](https://forums.developer.nvidia.com/t/356153) and
+  flashinfer-ai/flashinfer#2723 (closed by #2725) describe the same
+  symptom on sister architectures. The bundled FlashInfer cubin pack
+  in `flashinfer_jit_cache` already ships `fp4_gemm_cutlass_sm120`
+  and `fp4_quantization_120f` precompiled, and the validated
+  5,300 tok/s prefill is achieved **without** those six tactics. The
+  knob to add them is `FLASHINFER_CUDA_ARCH_LIST=12.0f` at
+  `flashinfer-jit-cache` build time, which would require a wheel
+  rebuild against CUDA 13.0+ toolkit; not a runtime env var on the
+  shipped wheel. Tracking as a future devnen-wheel improvement.
 - 2026-05-06 (validation pass) — Validated NVFP4 across 4 axes: long-ctx
   coherence + needles to 177k tokens, MTP acceptance 82%/74% at 50k/150k,
   tool-calling all 3 tiers (after a developer-role-alias template fix

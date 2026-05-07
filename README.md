@@ -12,6 +12,23 @@
 
 ---
 
+> ## v1.3.2 — Blackwell env hardening + cache-poison prevention
+>
+> Hotfix for a slow-prefill regression that bit RTX 5090 NVFP4 users
+> when system CUDA installs (or conda `cudatoolkit`) leaked into the
+> launch env. New `clean_cuda_env()` scrubs `CUDA_*`/`NVCC_*`/`CUDNN_*`
+> env vars and filters NVIDIA-toolkit + conda `Library/bin` from PATH;
+> new `preflight_sm120a_or_die()` 5-second probe hard-exits before the
+> 11-minute warmup if FlashInfer can't dispatch sm_120a; new
+> `windows_tools/wipe_caches.py` recovers the four caches that get
+> poisoned, with `mv → .bak.<timestamp>` for forensics. If you upgraded
+> from v1.3.0 / v1.3.1 and saw slow prefill (~750 tok/s on a 47 k NVFP4
+> prompt), run `python windows_tools\wipe_caches.py` once after
+> `update.bat`. See [`docs/UPGRADING.md`](docs/UPGRADING.md) and
+> [`docs/BLACKWELL.md`](docs/BLACKWELL.md).
+
+---
+
 > ## v1.2.5 — prefix caching back on, big prefill speedup
 >
 > v1.2.2 turned prefix caching **off** in all 12 snapshots to dodge a

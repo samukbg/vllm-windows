@@ -51,6 +51,7 @@ The "Both" column means the verdict applies to both the Ampere/Ada zip
 | `--cpu-offload-gb` | "for big models" | Exists but extends *batch capacity*, not *per-sequence ctx*. With `max-num-seqs=1` it does nothing useful. | Both |
 | `--swap-space` | Same | Same, batch capacity, not ctx. | Both |
 | `VLLM_USE_V1_SCHEDULER` (or asking to "enable async scheduling") | Older 0.19 recipes | Async scheduling was opt-in on 0.19, then **on by default in 0.20**. Setting the var on 0.20 is a no-op. | Both |
+| `FLASHINFER_CUDA_ARCH_LIST=12.0f` | "Set this to fix the 6 skipped fp4_gemm tactics on RTX 5090" | **Real env var, but not a runtime knob on this wheel.** It only matters when *building* `flashinfer-jit-cache` against CUDA 13.0+ toolkit. The shipped cubin pack already provides `fp4_gemm_cutlass_sm120` and `fp4_quantization_120f` precompiled, and the validated 5,300 tok/s NVFP4 prefill is achieved without the six TMA-WS tactics that get skipped. Setting the env var at runtime does nothing. See [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md). | Blackwell |
 
 ## Anti-levers, exist but measured to be no-ops or worse on this wheel
 

@@ -206,6 +206,102 @@ update.bat --variant blackwell
 
 See [`UPGRADING.md`](UPGRADING.md) for the full updater story.
 
+## CUDA env hygiene (v1.3.2+)
+
+The portable launcher cannot assume anything about what the user has
+installed system-wide. The four user environment classes are:
+
+1. **Drivers only** — most inference users. NVIDIA driver 596+, no CUDA
+   Toolkit, no conda. The bundled cu13 shim and torch's bundled DLLs
+   handle everything. This was always the design target.
+2. **System CUDA 12.x** — devs who installed CUDA 12.x for some other
+   tool. The dangerous case: `C:\Program Files\NVIDIA GPU Computing
+   Toolkit\CUDA\v12.4\bin\` on PATH ahead of the cu13 shim makes
+   FlashInfer log `Failed to get device capability: SM 12.x requires
+   CUDA >= 12.9` and silently fall back, then bake slow fp4_gemm
+   tactics into vLLM's AOT compile cache. See
+   `_local/CACHE_POISON_INCIDENT_2026-05-07.md` for the exact
+   reproduction.
+3. **System CUDA 13.x** — devs with a CUDA 13 Toolkit installed. Worked
+   accidentally before v1.3.2; scrubbed for uniformity now.
+4. **Conda / Mamba with `cudatoolkit`** — DLLs live under
+   `<env>/Library/bin` and shadow the shim the same way (2) does.
+
+**v1.3.2 hardens against all four** by replacing the additive
+`cuda_env()` helper with `clean_cuda_env()` for the `rtx5090_nvfp4`
+snapshot. It builds the subprocess environment from scratch:
+
+- Drops every `CUDA_*` / `NVCC_*` / `NVTOOLSEXT*` / `CUDNN_*` key
+  inherited from the host (any one can poison FlashInfer's runtime
+  probe).
+- Filters PATH to remove every NVIDIA-toolkit dir and known conda
+  `Library/bin` path.
+- Prepends the bundled `cuda13_shim/bin` and pins `CUDA_PATH` /
+  `CUDA_HOME` at it.
+
+A second layer, `preflight_sm120a_or_die()`, spawns a 5-second
+subprocess under the cleaned env before warmup starts. It calls
+`flashinfer.utils.is_sm120a_supported(cuda:0)` and hard-exits with a
+diagnostic if it returns False, instead of letting the launcher run
+degraded for 11 minutes before you notice. The error message points
+at this doc and at `windows_tools/wipe_caches.py`.
+
+## Recovering from a poisoned cache
+
+If you upgraded to v1.3.2 from an older release and saw slow prefill
+in the past, the pre-v1.3.2 boot may have already poisoned vLLM's
+compile cache under a polluted env. The fingerprint:
+
+- `rtx5090_nvfp4` prefill ~750 tok/s on a 47 k prompt (validated
+  baseline is ~5,300 tok/s @ 580 W).
+- `nvidia-smi dmon` shows SM 100 %, mem-BW ≈ 0 %, power 200–270 W
+  during prompt processing.
+- `[preflight WARN] vLLM compile cache was populated under a different
+  env` printed at boot.
+
+Recovery is one command:
+
+```powershell
+python windows_tools\wipe_caches.py
+```
+
+Backs up and wipes the four caches that, when poisoned, cause this
+fingerprint: `~/.cache/vllm/`, `%LOCALAPPDATA%\Temp\torchinductor_*`,
+`~/.cache/torch/`, `~/.cache/flashinfer/`. Defaults to
+move-to-`.bak.<timestamp>` for forensic comparison. Use `--no-backup`
+for outright deletion or `--dry-run` to preview. Cold rebuild on next
+boot takes ~11–25 min depending on what was wiped.
+
+The `cache_env_stamp_check()` preflight writes
+`~/.cache/vllm/.env_stamp.json` on a clean boot and warns loudly on
+mismatch, so wheel upgrades and env-pollution incidents both surface
+the recommendation to wipe.
+
+## Expected first-boot autotune time
+
+FlashInfer's `fp4_gemm` autotuner runs once per unique GEMM shape
+encountered during CUDA-graph capture and warmup. With MTP n=6,
+chunked prefill, `max_num_batched_tokens=4128`, ctx 200 k there are a
+lot of shapes. Expect:
+
+- **Warm cache (subsequent boots):** 3–8 min.
+- **Cold FlashInfer cache only:** ~9 min.
+- **After `wipe_caches.py` (vLLM + torch + torchinductor + flashinfer
+  all wiped):** 11–25 min.
+
+You'll see many `[AutoTuner]: Tuning fp4_gemm: 0/13 → 13/13` cycles.
+That's expected, not a loop. Each cycle is a different shape. The
+`[Autotuner]: Skipped 6 unsupported tactic(s) for fp4_gemm` line is
+also normal: those six are TMA-WS kernels gated on `compute_120f`, not
+shipped in the bundled FlashInfer cubin pack. The validated 5,300
+tok/s prefill is achieved without them. See
+[`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md) for the research on
+that knob.
+
+Wait for `Application startup complete` and `Uvicorn running on
+http://0.0.0.0:5001`. Do not kill the snapshot mid-autotune;
+interrupting forces the cycle to start over on the next boot.
+
 ## The CUDA 13 runtime shim, in detail
 
 flashinfer 0.4.x does an absolute-path `CDLL` of `cudart64_13.dll` at
