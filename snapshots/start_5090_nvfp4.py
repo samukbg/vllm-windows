@@ -32,6 +32,7 @@ from _common import (
     msvc_env, cuda_env, flashinfer_sampler_env, log_path_for,
     enhanced_jinja_path, resolve_cuda_visible_devices,
     print_port_collision_banner, random_dp_rpc_port,
+    cache_env_stamp_check, clean_cuda_env, preflight_sm120a_or_die,
 )
 
 # NVFP4 weights live separately from the AutoRound default. Override.
@@ -90,11 +91,24 @@ def main() -> int:
         except EOFError: pass
         return 1
 
-    env = os.environ.copy()
+    cache_env_stamp_check(snapshot_py=Path(__file__))
+
+    # Build a scrubbed env from scratch instead of inheriting host CUDA
+    # pollution. See clean_cuda_env() docstring + the cache-poison
+    # incident doc for why this is load-bearing on Blackwell.
+    env = clean_cuda_env(os.environ)
     _msvc = msvc_env()
     env.update(_msvc)
-    env.update(cuda_env())
     env.update(flashinfer_sampler_env(_msvc))
+
+    # Verify FlashInfer can dispatch to sm_120a under THIS env, before
+    # we spend ~11 minutes warming up the model. Hard-exits on failure.
+    # VENV is either a dev venv (python in Scripts/) or the embedded
+    # interpreter (python at root) — try both.
+    _probe_py = VENV / "Scripts" / "python.exe"
+    if not _probe_py.exists():
+        _probe_py = VENV / "python.exe"
+    preflight_sm120a_or_die(env, vllm_python=_probe_py)
     ENHANCED_JINJA = enhanced_jinja_path()
     if not Path(ENHANCED_JINJA).exists():
         print(f"[ERROR] enhanced jinja template not found: {ENHANCED_JINJA}", file=sys.stderr)
@@ -162,6 +176,12 @@ def main() -> int:
     print(f"  Ctx     : {CTX}  |  TP: {TP}  |  PP: {PP}")
     print(f"  KV dtype: {KV_CACHE_DTYPE}  |  MTP: {USE_MTP} (n={NUM_SPEC_TOKENS})")
     print(f"  Listen  : http://{HOST}:{PORT}")
+    print("=" * 60)
+    print("[NOTE] FlashInfer will run 'Tuning fp4_gemm' MANY times during warmup.")
+    print("       Each 0/13 -> 13/13 cycle is a DIFFERENT GEMM shape (batch size,")
+    print("       MTP draft length, prefill chunk) — not a loop. Expect 3-8 min")
+    print("       of autotuning before 'Uvicorn running on http://0.0.0.0:%d'." % PORT)
+    print("       Do NOT kill the process mid-autotune; interrupting restarts it.")
     print("=" * 60)
     print(" ".join(args))
     print("=" * 60, flush=True)

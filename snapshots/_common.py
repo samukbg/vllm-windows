@@ -476,6 +476,251 @@ def cuda_env() -> dict:
     return {"CUDA_LIB_PATH": str(REPO_ROOT / "python")}
 
 
+_BAD_PATH_FRAGMENTS = (
+    # System NVIDIA toolkits (any version). The cu13 shim we ship has the
+    # cudart/cublas/nvrtc DLLs flashinfer needs. Any other toolkit on PATH
+    # can shadow them and trigger flashinfer's "SM 12.x requires CUDA >= 12.9"
+    # silent fallback, which then bakes slow tactics into vLLM's compile cache.
+    "NVIDIA GPU Computing Toolkit",
+    "NVIDIA Corporation\\CUDA",
+    # Conda/Anaconda/Miniconda's Library/bin can carry cudatoolkit DLLs.
+    "Anaconda3\\Library\\bin",
+    "anaconda3\\Library\\bin",
+    "Miniconda3\\Library\\bin",
+    "miniconda3\\Library\\bin",
+    "miniforge3\\Library\\bin",
+    "mambaforge\\Library\\bin",
+)
+_CUDA_ENV_PREFIXES = ("CUDA_", "NVCC_", "NVTOOLSEXT", "CUDNN_")
+
+
+def clean_cuda_env(base: "dict[str, str] | None" = None) -> "dict[str, str]":
+    """Build a clean env for the vLLM subprocess, scrubbing system CUDA
+    pollution.
+
+    Returns a dict suitable for ``subprocess.Popen(..., env=...)``:
+
+    - All ``CUDA_*`` / ``NVCC_*`` / ``NVTOOLSEXT*`` / ``CUDNN_*`` keys
+      removed (system installer + conda set these and any one can
+      poison flashinfer's runtime probe).
+    - PATH filtered to drop every system NVIDIA toolkit dir and every
+      conda Library/bin we recognise.
+    - The bundled ``cuda13_shim/bin`` prepended to PATH (when on a cu13
+      torch wheel).
+    - ``CUDA_PATH`` and ``CUDA_HOME`` set to the shim.
+
+    The four user environment classes this hardens against:
+
+      1. Pure inference users — drivers only, no system CUDA. Already
+         worked; this is a no-op for them.
+      2. Devs with CUDA 12.x installed for some other tool. The
+         critical one — system 12.4 was the cache-poison vector.
+      3. Devs with CUDA 13.x installed. Worked accidentally before;
+         we still scrub so behaviour is uniform across machines.
+      4. Conda/Miniconda/Mamba users with cudatoolkit on PATH.
+
+    See ``_local/CACHE_POISON_INCIDENT_2026-05-07.md`` for the
+    incident this prevents and the runtime fingerprint.
+
+    The legacy ``cuda_env()`` helper above is kept untouched for
+    Ampere/Ada snapshots that may still depend on its add-only
+    semantics. Blackwell snapshots should adopt this newer helper.
+    """
+    base = dict(base if base is not None else os.environ)
+
+    # 1) Drop every CUDA-flavoured key inherited from the host.
+    for k in list(base):
+        if any(k.upper().startswith(p) for p in _CUDA_ENV_PREFIXES):
+            del base[k]
+
+    # 2) Filter PATH.
+    path_parts = base.get("PATH", "").split(os.pathsep)
+    keep = [p for p in path_parts
+            if p and not any(b.lower() in p.lower() for b in _BAD_PATH_FRAGMENTS)]
+
+    # 3) Prepend the cu13 shim if torch is cu13 and the shim is built.
+    cuda_major = _torch_cuda_major()
+    if cuda_major and cuda_major >= 13:
+        shim = _cuda13_shim_dir()
+        if shim is not None:
+            base["CUDA_PATH"] = str(shim)
+            base["CUDA_HOME"] = str(shim)
+            shim_bin = str(shim / "bin")
+            if shim_bin not in keep:
+                keep = [shim_bin] + keep
+
+    base["PATH"] = os.pathsep.join(keep)
+    return base
+
+
+def preflight_sm120a_or_die(env: "dict[str, str]", *, vllm_python: "Path | str") -> None:
+    """Spawn a 5-second subprocess under ``env`` and verify FlashInfer
+    can dispatch to ``sm_120a`` on cuda:0. Hard-exit otherwise.
+
+    This catches the exact silent-degradation mode that bit us on
+    2026-05-07: a polluted CUDA env let flashinfer log
+    ``SM 12.x requires CUDA >= 12.9`` and continue, which then baked
+    slow tactics into the AOT compile cache. If the env is wrong, we
+    want to know in 5 seconds, not 11 minutes after warmup.
+
+    Runs the probe in a *subprocess* (not in-process) so the launcher
+    python's import state stays clean and the subprocess sees the
+    exact env vLLM will see.
+    """
+    py = str(vllm_python)
+    code = (
+        "import sys\n"
+        "try:\n"
+        "    import torch\n"
+        "    if not torch.cuda.is_available():\n"
+        "        print('NO_CUDA', flush=True); sys.exit(2)\n"
+        "    cap = torch.cuda.get_device_capability(0)\n"
+        "    name = torch.cuda.get_device_name(0)\n"
+        "    rt = torch.version.cuda\n"
+        "    from flashinfer.utils import is_sm120a_supported\n"
+        "    ok = bool(is_sm120a_supported(torch.device('cuda:0')))\n"
+        "    print(f'PROBE cap={cap} cudart={rt} name={name!r} sm120a={ok}', flush=True)\n"
+        "    sys.exit(0 if ok else 3)\n"
+        "except Exception as e:\n"
+        "    print(f'PROBE_FAIL {type(e).__name__}: {e}', flush=True)\n"
+        "    sys.exit(4)\n"
+    )
+    print("[preflight] verifying FlashInfer sm_120a dispatch under clean env...", flush=True)
+    try:
+        out = subprocess.run(
+            [py, "-c", code],
+            env=env, capture_output=True, text=True, timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        print(f"[preflight] probe spawn failed ({type(e).__name__}: {e}); continuing without check.",
+              file=sys.stderr, flush=True)
+        return
+    line = (out.stdout or out.stderr or "").strip().splitlines()
+    last = line[-1] if line else ""
+    if out.returncode == 0:
+        print(f"[preflight] OK — {last}", flush=True)
+        return
+    # Failure: print everything we know, then bail.
+    print("=" * 72, file=sys.stderr, flush=True)
+    print("[preflight ERROR] FlashInfer sm_120a dispatch is unavailable.",
+          file=sys.stderr, flush=True)
+    print(f"[preflight ERROR] probe exit={out.returncode}, last_line={last!r}",
+          file=sys.stderr, flush=True)
+    if out.returncode == 3:
+        print("[preflight ERROR] Likely cause: a system CUDA toolkit < 12.9 is",
+              file=sys.stderr, flush=True)
+        print("[preflight ERROR] shadowing the bundled cu13 shim. Even with the env",
+              file=sys.stderr, flush=True)
+        print("[preflight ERROR] scrub, an already-loaded cudart in this process tree",
+              file=sys.stderr, flush=True)
+        print("[preflight ERROR] can survive — close all terminals and relaunch from",
+              file=sys.stderr, flush=True)
+        print("[preflight ERROR] start.bat in a fresh shell.",
+              file=sys.stderr, flush=True)
+        print("[preflight ERROR]", file=sys.stderr, flush=True)
+        print("[preflight ERROR] Diagnostic info to attach to a bug report:",
+              file=sys.stderr, flush=True)
+        print('[preflight ERROR]   where cudart64_13.dll', file=sys.stderr, flush=True)
+        print('[preflight ERROR]   echo %CUDA_PATH%', file=sys.stderr, flush=True)
+        print('[preflight ERROR]   echo %PATH%', file=sys.stderr, flush=True)
+    elif out.returncode == 4:
+        print("[preflight ERROR] Probe raised — check the message above.",
+              file=sys.stderr, flush=True)
+    print("[preflight ERROR] If this persists despite a clean shell, the wheel",
+          file=sys.stderr, flush=True)
+    print("[preflight ERROR] itself may not have compute_120f tactics compiled.",
+          file=sys.stderr, flush=True)
+    print("[preflight ERROR] See _local/CACHE_POISON_INCIDENT_2026-05-07.md.",
+          file=sys.stderr, flush=True)
+    print("=" * 72, file=sys.stderr, flush=True)
+    sys.exit(1)
+
+
+def cache_env_stamp_check(snapshot_py: "Path | None" = None) -> None:
+    """Detect a stale vLLM AOT compile cache and warn loudly if found.
+
+    vLLM's torch-inductor AOT cache (``~/.cache/vllm/``) bakes in the
+    FlashInfer tactic IDs picked at graph-compile time. If the cache
+    was populated under a polluted CUDA env (e.g. system CUDA 12.4 on
+    PATH ahead of the cu13 shim), every later boot inherits the slow
+    picks even after the env is fixed. The fingerprint is documented
+    in ``_local/CACHE_POISON_INCIDENT_2026-05-07.md``.
+
+    This check writes a small JSON stamp inside the vLLM cache the
+    first time it sees a clean env, then on every subsequent boot
+    compares the current env to the stamp. On mismatch it prints a
+    big warning recommending ``windows_tools/wipe_caches.py``. Best
+    effort: any failure is silent (we never want this to break boot).
+    """
+    try:
+        import json as _json
+        try:
+            import torch  # type: ignore
+            torch_cuda = getattr(torch.version, "cuda", "") or ""
+            arch_list = list(torch.cuda.get_arch_list())
+        except Exception:
+            torch_cuda, arch_list = "", []
+        try:
+            import flashinfer  # type: ignore
+            fi_version = getattr(flashinfer, "__version__", "")
+        except Exception:
+            fi_version = ""
+        cuda_path = os.environ.get("CUDA_PATH", "") or os.environ.get("CUDA_LIB_PATH", "")
+        snap_mtime = 0.0
+        if snapshot_py is not None:
+            try:
+                snap_mtime = round(Path(snapshot_py).stat().st_mtime, 0)
+            except OSError:
+                pass
+
+        current = {
+            "torch_cuda": torch_cuda,
+            "arch_list": arch_list,
+            "flashinfer": fi_version,
+            "cuda_path": cuda_path,
+            "snapshot_py_mtime": snap_mtime,
+            "version": 1,
+        }
+
+        cache_root = Path(os.environ.get("USERPROFILE", os.path.expanduser("~"))) / ".cache" / "vllm"
+        stamp = cache_root / ".env_stamp.json"
+        if not cache_root.is_dir():
+            return  # nothing cached yet, nothing to check
+        if not stamp.is_file():
+            try:
+                stamp.write_text(_json.dumps(current, indent=2), encoding="utf-8")
+                print(f"[preflight] wrote vLLM cache env stamp: {stamp}", flush=True)
+            except OSError:
+                pass
+            return
+        try:
+            previous = _json.loads(stamp.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        diffs = [k for k in current if previous.get(k) != current.get(k)]
+        if not diffs:
+            return  # quiet success, env matches what populated the cache
+        print("=" * 72, flush=True)
+        print("[preflight WARN] vLLM compile cache was populated under a different env.", flush=True)
+        print(f"[preflight WARN]   stamp file: {stamp}", flush=True)
+        for k in diffs:
+            print(f"[preflight WARN]   {k:18s}: was={previous.get(k)!r}  now={current.get(k)!r}", flush=True)
+        print("[preflight WARN]", flush=True)
+        print("[preflight WARN] If you observe slow prefill (~750 tok/s) on a 47k NVFP4 prompt,", flush=True)
+        print("[preflight WARN] the cache is poisoned. Recover with:", flush=True)
+        print("[preflight WARN]   python windows_tools/wipe_caches.py", flush=True)
+        print("[preflight WARN] See _local/CACHE_POISON_INCIDENT_2026-05-07.md for the full story.", flush=True)
+        print("=" * 72, flush=True)
+        # Refresh the stamp so the warning isn't repeated forever once the user accepts it.
+        try:
+            stamp.write_text(_json.dumps(current, indent=2), encoding="utf-8")
+        except OSError:
+            pass
+    except Exception:
+        # Preflight must never break boot.
+        pass
+
+
 def random_dp_rpc_port() -> int:
     """Return a random free TCP port for the data-parallel RPC handshake.
 
