@@ -299,12 +299,33 @@ def _ensure_python_headers() -> None:
         print("  [warn] header overlay finished but Python.h / python312.lib still missing.")
 
 
+def _pip_env() -> dict:
+    """Return a subprocess env safe for pip's atomic-rename file moves.
+
+    Pip's install/uninstall path renames files between TMP and the target
+    site-packages dir. When TMP points to a host-managed location that pip
+    cannot reliably stat or write through (observed: parent process inheriting
+    TMP from a portable claude-code install at ``C:\\_projects\\claude-portable\\temp``),
+    pip rolls back mid-install with ``OSError: [Errno 2] No such file or
+    directory: '...INSTALLER<random>.tmp'``. Override TMP/TEMP to a dedicated
+    dir under the install root so they are guaranteed same-volume, writable,
+    and not shared with any other tool.
+    """
+    env = os.environ.copy()
+    pip_tmp = paths.writable_root() / ".pip-tmp"
+    pip_tmp.mkdir(parents=True, exist_ok=True)
+    env["TMP"] = str(pip_tmp)
+    env["TEMP"] = str(pip_tmp)
+    return env
+
+
 def _bootstrap_pip() -> None:
     src = _vendored_get_pip() or _download_get_pip()
     print(f"  Bootstrapping pip via {src.name} ...")
     r = subprocess.run(
         [sys.executable, str(src), "--no-warn-script-location"],
         capture_output=False,
+        env=_pip_env(),
     )
     if r.returncode != 0:
         raise RuntimeError(f"pip bootstrap failed (exit {r.returncode})")
@@ -355,6 +376,8 @@ def _install_wheel(wheel: Path) -> None:
     # build-isolation env install of pybind11 isn't always picked up on
     # embedded Python, so pre-install these into the user env where the
     # final fallback search succeeds.
+    pip_env = _pip_env()
+    print(f"  pip TMP/TEMP override: {pip_env['TMP']}")
     print("  Pre-installing build helpers (setuptools, wheel, pybind11) ...")
     bootstrap_cmd = [
         sys.executable, "-m", "pip", "install",
@@ -362,7 +385,7 @@ def _install_wheel(wheel: Path) -> None:
         "--upgrade",
         "setuptools", "wheel", "pybind11",
     ]
-    r = subprocess.run(bootstrap_cmd, capture_output=False)
+    r = subprocess.run(bootstrap_cmd, capture_output=False, env=pip_env)
     if r.returncode != 0:
         raise RuntimeError(f"build-helper install failed (exit {r.returncode})")
     print()
@@ -373,7 +396,7 @@ def _install_wheel(wheel: Path) -> None:
         "--no-warn-script-location",
         str(wheel),
     ]
-    r = subprocess.run(cmd, capture_output=False)
+    r = subprocess.run(cmd, capture_output=False, env=pip_env)
     if r.returncode != 0:
         raise RuntimeError(f"pip install failed (exit {r.returncode})")
     # vLLM 0.19.0+devnen.1's METADATA gates llguidance + xgrammar on
@@ -388,7 +411,7 @@ def _install_wheel(wheel: Path) -> None:
         "llguidance>=1.3.0,<1.4.0",
         "xgrammar>=0.1.32,<1.0.0",
     ]
-    r = subprocess.run(extras_cmd, capture_output=False)
+    r = subprocess.run(extras_cmd, capture_output=False, env=pip_env)
     if r.returncode != 0:
         raise RuntimeError(f"extras install failed (exit {r.returncode})")
 
