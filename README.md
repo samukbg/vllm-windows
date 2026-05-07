@@ -12,6 +12,27 @@
 
 ---
 
+> ## v1.3.3 — PP=2 fixed on Ampere, real long-prompt bench fixture
+>
+> Bug-fix release. `pp2_160k` (Both-GPU big-ctx) failed to boot on the
+> public Ampere zip with `ZMQError: Protocol not supported (addr='ipc://...')`
+> because pyzmq has no `ipc://` transport on Windows. New patched wheels
+> (`vllm-0.19.0+devnen.2` Ampere, `vllm-0.20.0+cu132.devnen.2` Blackwell)
+> add a Windows-only ipc -> tcp fallback plus an Ampere-only worker-pipe
+> `_ConnectionBase` widening. PP=2 now boots, is coherent, and decodes
+> within ~10 % of the documented 40.3 tok/s on 2× RTX 3090.
+>
+> Also: `bench_summarize.py` runs from a stock install (the embedded
+> `python312._pth` now includes `..\windows_tools` so `import bench`
+> resolves), and `bench_prompt_sample.py` is a real ~25 k-token fixture
+> (CPython 3.12 `inspect.py`) instead of a 670-token stub. Documented
+> `decode_tps` numbers are now reproducible from a clean install.
+>
+> See [`docs/UPGRADING.md`](docs/UPGRADING.md). Single-GPU users see no
+> functional change.
+
+---
+
 > ## v1.3.2 — Blackwell env hardening + cache-poison prevention
 >
 > Hotfix for a slow-prefill regression that bit RTX 5090 NVFP4 users

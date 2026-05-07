@@ -150,9 +150,11 @@ def main() -> int:
         txt = txt.rstrip() + "\nLib\\site-packages\n"
     # Embedded python ._pth fully owns sys.path — the script's directory
     # is NOT auto-added the way it is for a normal Python install. We
-    # need ..\launcher (so `python -m app` works) AND ..\snapshots
-    # (so snapshot scripts can `from _common import ...`).
-    for extra in ("..\\launcher", "..\\snapshots"):
+    # need ..\launcher (so `python -m app` works), ..\snapshots (so
+    # snapshot scripts can `from _common import ...`), and
+    # ..\windows_tools (so bench_summarize.py can `import bench` from
+    # its sibling — the embedded interpreter ignores cwd / PYTHONPATH).
+    for extra in ("..\\launcher", "..\\snapshots", "..\\windows_tools"):
         if extra not in txt:
             lines = txt.splitlines()
             for i, line in enumerate(lines):
