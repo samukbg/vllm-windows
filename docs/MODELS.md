@@ -18,25 +18,113 @@ how cleanly depends on what changes.
 | Qwen3 / Qwen3.5-27B (non-thinking variants) | 🟡 mostly works | The reasoning parser expects `<think>` tags; non-thinking models won't emit them, so the reasoning field stays empty. Otherwise serves fine. |
 | Qwen3-14B INT4 | 🟢 works on 16 GB cards | Drop-in for 4060 Ti 16G / 4070 Ti / 4080 / 5070. Smaller weights, no MTP head, but vLLM's continuous batching is still a win over llama.cpp. Edit a snapshot to point at the new weights. |
 | Qwen3-8B / 4B / 1.7B / 0.6B INT4 | 🟢 works | For 8-12 GB cards. Useful for draft-model spec-decode in theory but vocab mismatch with 27B blocks that path. |
-| Qwen3.6-27B "abliterated" / Heretic / Censorship-removed forks | 🟡 boots if INT4-AutoRound | Same constraint as any third-party 27B quant: works if the MTP head is in BF16 (rare), boots-without-MTP otherwise. The chat template still applies; reasoning still works. |
+| Qwen3.6-27B "abliterated" / Heretic / Censorship-removed forks | 🟡 works, INT4-AutoRound boots cleanly | See ["Abliterated / heretic / uncensored variants"](#abliterated--heretic--uncensored-variants) below. `lyf/Qwen3.6-27B-heretic-v2-mtp-int4-AutoRound` mirrors Lorbus's recipe (BF16 MTP head preserved). For Blackwell, `sakamakismile/Huihui-Qwen3.6-27B-abliterated-NVFP4-TEXT-MTP`. Other variants boot but may silently no-op MTP — verify via `MTP_HEAD.md`. |
 | Llama 3.1, Mistral, Gemma, Phi, etc. | 🟡 boots, wrong defaults | The wheel can serve them, but the shipped chat template, tool-call parser, reasoning parser, and snapshots are Qwen3-specific. You'd need to rebuild the snapshot to swap the template and parsers. Outside what this project does for you. |
 | GGUF anything | ❌ won't work | This is vLLM, not llama.cpp. Use the safetensors version of the model. |
 
 ## How to swap models
 
+### Three ways to point the launcher at custom weights
+
+Pick whichever fits your workflow. All three trigger the same boot-time
+banner — `[model] using <path>  (source: env|--model-dir|saved-config|default|drive-scan)`
+— so you can always confirm the launcher picked the right dir.
+
+| Mechanism | When to use | How |
+|---|---|---|
+| `start.bat --model-dir "<path>"` | One-shot test, scripted launches | `start.bat --model-dir "D:\models\<your-model>"` |
+| `VLLM_MODEL_DIR` env var | Multiple snapshots, persists across launches in the same shell | `set VLLM_MODEL_DIR=D:\models\<your-model>` then `start.bat` (PowerShell: `$env:VLLM_MODEL_DIR="..."`) |
+| In-TUI model-dir picker (v1.0+) | Permanent default for this install | Launch `start.bat`, the picker shows current model + a Browse button. Selection is saved to `user_config.json` and used on every subsequent boot. |
+
+For the NVFP4 path on Blackwell, the variable is `VLLM_NVFP4_MODEL_DIR`
+(separate from `VLLM_MODEL_DIR` so you can keep both an AutoRound and
+an NVFP4 model on disk and switch by snapshot).
+
+After any swap, **always**:
+
+1. Patch the tokenizer (idempotent — skips if already patched):
+   ```powershell
+   python windows_tools\patch_tokenizer.py "D:\models\<your-model>"
+   ```
+   This flips the `tokenizer_class` from quant-uploader-specific
+   classes (e.g. `TokenizersBackend`) that transformers 4.57 doesn't
+   recognise to `Qwen2Tokenizer`.
+2. Verify shard checksums if you downloaded from HF:
+   ```powershell
+   python windows_tools\verify_model_sha.py "D:\models\<your-model>"
+   ```
+3. Boot the snapshot, then run the 3-tier coherence check:
+   ```powershell
+   python windows_tools\check_coherence.py --port 5001
+   ```
+4. Watch the boot log for `draft_acceptance_rate`. Near 0.0 means the
+   quant's MTP head got silently skipped — see
+   [`MTP_HEAD.md`](MTP_HEAD.md) for the safetensors-grep procedure
+   that confirms whether `mtp.fc` is in BF16.
+
 ### Same model class (Qwen3.6 INT4 AutoRound from a different uploader)
 
-1. Download the new weights into a folder. Convention:
-   `<drive>:\_models\<UploaderName>\<ModelName>\`.
-2. Set `VLLM_MODEL_DIR` to the new path before launching, or run
-   `start.bat --model-dir "<path>"`. The launcher prints
-   `[model] using <path>  (source: env|saved-config|default|drive-scan)`
-   at boot so you can confirm.
-3. Run [`windows_tools\check_coherence.py`](../windows_tools/check_coherence.py)
-   first — coherence-validated TPS is the only TPS that matters.
-4. If MTP acceptance is near zero, the quant's MTP head got silently
-   skipped. See [`MTP_HEAD.md`](MTP_HEAD.md) for the safetensors-grep
-   procedure to confirm.
+The simplest case — the snapshot's `--quantization=auto-round` flag
+and the shipped chat template / tool-call parser / reasoning parser
+all apply unchanged. Download into a folder (convention:
+`<drive>:\_models\<UploaderName>\<ModelName>\`) and use one of the
+three mechanisms above to point the launcher at it. Run the post-swap
+steps (tokenizer patch, SHA verify, coherence check, watch
+`draft_acceptance_rate`).
+
+### Abliterated / heretic / uncensored variants
+
+These are community fine-tunes of Qwen3.6-27B with the refusal vector
+ablated. They serve fine on this launcher as long as you pick a quant
+that preserves the MTP head, otherwise speculative decoding silently
+no-ops and decode caps near 30-40 tok/s instead of 60+.
+
+**Recommended drop-ins** (verified on HuggingFace, BF16 MTP head
+preserved):
+
+| Repo | Use with | Notes |
+|---|---|---|
+| [`lyf/Qwen3.6-27B-heretic-v2-mtp-int4-AutoRound`](https://huggingface.co/lyf/Qwen3.6-27B-heretic-v2-mtp-int4-AutoRound) | Ampere/Ada zip, any AutoRound INT4 snapshot (`start_speed`, `start_127k`, `start_mtp4`, `rtx5090`, `rtx5090_max`) | INT4 AutoRound, mirrors Lorbus's quantization recipe on a heretic body. `--quantization=auto-round` works as-is. |
+| [`sakamakismile/Huihui-Qwen3.6-27B-abliterated-NVFP4-TEXT-MTP`](https://huggingface.co/sakamakismile/Huihui-Qwen3.6-27B-abliterated-NVFP4-TEXT-MTP) | Blackwell zip, `rtx5090_nvfp4` snapshot | NVFP4 with all 15 `mtp.*` tensors in BF16. Use `VLLM_NVFP4_MODEL_DIR` instead of `VLLM_MODEL_DIR`. |
+
+**Other abliterated repos that exist but aren't pre-verified:**
+[`hell0ks/Qwen3.6-27B-heretic-ara-int4-AutoRound`](https://huggingface.co/hell0ks/Qwen3.6-27B-heretic-ara-int4-AutoRound),
+[`prithivMLmods/Qwen3.6-27B-abliterated-rMAX`](https://huggingface.co/prithivMLmods/Qwen3.6-27B-abliterated-rMAX),
+[`wangzhang/Qwen3.6-27B-abliterated`](https://huggingface.co/wangzhang/Qwen3.6-27B-abliterated),
+[`acyildirimer/Qwen3.6-27B-int4-AutoRound`](https://huggingface.co/acyildirimer/Qwen3.6-27B-int4-AutoRound).
+They boot, but the MTP head BF16 status isn't confirmed — run the
+safetensors-grep procedure in [`MTP_HEAD.md`](MTP_HEAD.md) before
+trusting any decode tok/s number, or just watch the boot log for
+`draft_acceptance_rate`. If it's near 0.0, the quant's MTP head got
+silently skipped and you're running un-speculated decode.
+
+**The full-precision base** [`huihui-ai/Huihui-Qwen3.6-27B-abliterated`](https://huggingface.co/huihui-ai/Huihui-Qwen3.6-27B-abliterated)
+exists but is 54 GiB on disk — too big for any 24 GB card and too big
+even for a 32 GB 5090 with useful KV. Useful only on A100 80 GB or
+similar. Quantize it yourself if you want a custom AutoRound INT4
+without trusting a third-party uploader; the AutoRound recipe Lorbus
+used is in their model card.
+
+**Procedure** is the same as any other Qwen3.6-27B INT4 swap:
+
+```powershell
+# 1. Download the weights into your models dir
+huggingface-cli download lyf/Qwen3.6-27B-heretic-v2-mtp-int4-AutoRound `
+    --local-dir D:\models\Qwen3.6-27B-heretic-v2-mtp-int4-AutoRound
+
+# 2. Patch the tokenizer (idempotent; skips if already patched)
+python windows_tools\patch_tokenizer.py D:\models\Qwen3.6-27B-heretic-v2-mtp-int4-AutoRound
+
+# 3. Point the launcher at it (one-shot via CLI flag, or set the env var)
+start.bat --model-dir "D:\models\Qwen3.6-27B-heretic-v2-mtp-int4-AutoRound"
+```
+
+The launcher prints `[model] using <path>  (source: --model-dir)` at
+boot so you can confirm it picked up the swap. Run
+[`windows_tools\check_coherence.py --port 5001`](../windows_tools/check_coherence.py)
+once it's serving — coherence-validated TPS is the only TPS that
+matters, and abliteration occasionally damages the model in ways the
+quant can't recover.
 
 ### Different size of Qwen (e.g. Qwen3-14B INT4 on a 16 GB card)
 
@@ -102,18 +190,11 @@ arbitrary HuggingFace ids, every "TPS is bad" issue would come with a
 caveat we can't reasonably validate. The ergonomics aren't worth the
 support cost.
 
-For other models, point the launcher at an existing local directory
-in any of three ways (all of which the dashboard reflects in the
-header banner):
-
-- `VLLM_MODEL_DIR` env var before launch.
-- `--model-dir <path>` CLI flag on `start.bat`.
-- The in-TUI model-dir picker (added in v1.0). The dashboard prints
-  a `[model] using <path>  (source: env|saved-config|default|drive-scan)`
-  line on every boot so you can see which one was picked.
-
-Download the weights with `huggingface-cli` or `snapshot_download`
-separately.
+For other models, download the weights with `huggingface-cli` or
+`snapshot_download`, then point the launcher at the local directory
+using one of the
+["Three ways to point the launcher at custom weights"](#three-ways-to-point-the-launcher-at-custom-weights)
+above.
 
 ## Related
 
