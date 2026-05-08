@@ -186,11 +186,27 @@ jobs:
         id: notes
         shell: bash
         run: |
-          if [ -f dist/RELEASE_NOTES.md ]; then
+          # Resolution order:
+          #   1. release_notes/<tag>.md  -- hand-written per-release notes
+          #      committed to the repo. This is the preferred path; commit
+          #      the file alongside the fix that the tag ships.
+          #   2. dist/RELEASE_NOTES.md   -- legacy path (dist/ is gitignored,
+          #      so this only fires when something else in the build wrote
+          #      it). Kept for backwards compatibility.
+          #   3. Auto-generated from commits since the previous tag.
+          REL='${{ steps.vars.outputs.release_tag }}'
+          if [ -f "release_notes/${REL}.md" ]; then
+            echo "path=release_notes/${REL}.md" >> "$GITHUB_OUTPUT"
+            echo "mode=file" >> "$GITHUB_OUTPUT"
+            echo "Using release_notes/${REL}.md"
+          elif [ -f dist/RELEASE_NOTES.md ]; then
             echo "path=dist/RELEASE_NOTES.md" >> "$GITHUB_OUTPUT"
+            echo "mode=file" >> "$GITHUB_OUTPUT"
+            echo "Using dist/RELEASE_NOTES.md (legacy path)"
           else
-            echo "Portable Qwen3.6-27B launcher for Windows. See repo README for what's inside." > /tmp/notes.md
-            echo "path=/tmp/notes.md" >> "$GITHUB_OUTPUT"
+            echo "path=" >> "$GITHUB_OUTPUT"
+            echo "mode=auto" >> "$GITHUB_OUTPUT"
+            echo "No release_notes/${REL}.md found - falling back to gh --generate-notes"
           fi
 
       - name: Create / update GitHub Release
@@ -200,17 +216,34 @@ jobs:
         run: |
           set -euo pipefail
           REL='${{ steps.vars.outputs.release_tag }}'
+          MODE='${{ steps.notes.outputs.mode }}'
+          NOTES_PATH='${{ steps.notes.outputs.path }}'
           if ! git rev-parse "refs/tags/$REL" >/dev/null 2>&1; then
             git tag "$REL"
             git push origin "$REL" || true
           fi
+
+          # gh release edit doesn't support --generate-notes, only create
+          # does. For the edit branch with mode=auto, render notes via the
+          # GH API release-notes generator and write to a temp file.
+          if [ "$MODE" = "auto" ]; then
+            AUTO_NOTES=/tmp/auto_notes.md
+            gh api --method POST \
+              "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+              -f tag_name="$REL" \
+              --jq '.body' > "$AUTO_NOTES"
+            NOTES_ARGS=( --notes-file "$AUTO_NOTES" )
+          else
+            NOTES_ARGS=( --notes-file "$NOTES_PATH" )
+          fi
+
           if gh release view "$REL" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$REL" dist/*.zip dist/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
-            gh release edit   "$REL" --notes-file '${{ steps.notes.outputs.path }}' --repo "$GITHUB_REPOSITORY"
+            gh release edit   "$REL" "${NOTES_ARGS[@]}" --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$REL" \
               --repo "$GITHUB_REPOSITORY" \
               --title "qwen3.6-windows-server $REL — portable Windows launcher" \
-              --notes-file '${{ steps.notes.outputs.path }}' \
+              "${NOTES_ARGS[@]}" \
               dist/*.zip dist/SHA256SUMS.txt
           fi
