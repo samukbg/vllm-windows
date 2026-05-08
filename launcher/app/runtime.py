@@ -237,17 +237,26 @@ def detect_running(ports: list[int], configs) -> dict[str, RunningProc]:
     return result
 
 
-def probe_ready(port: int, host: str = "127.0.0.1", timeout: float = 0.8) -> bool:
+def probe_ready(port: int, host: str = "127.0.0.1", timeout: float = 1.5) -> bool:
     """True iff the vLLM API is actually serving requests on this port.
 
     Distinguishes "vLLM is loading weights / compiling kernels" (port may or
     may not be bound, /v1/models 404s or hangs) from "vLLM is ready" (returns
-    200 with a JSON model list). Cheap enough to run on every 2s poll.
+    200 with a JSON model list).
+
+    Bypasses the system proxy. urllib.request.urlopen honors http_proxy /
+    https_proxy env vars and the Windows IE/registry proxy settings, which
+    means a localhost GET gets routed through the corporate proxy on any box
+    that has one configured — the proxy then returns a non-200 (or hangs),
+    the launcher never moves the snapshot from LOADING into READY, and the
+    user reports "interface won't show that model is running" even though
+    vLLM logged Application startup complete (issue #12).
     """
     import urllib.request
     try:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         req = urllib.request.Request(f"http://{host}:{port}/v1/models")
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with opener.open(req, timeout=timeout) as r:
             return 200 <= r.status < 300
     except Exception:
         return False

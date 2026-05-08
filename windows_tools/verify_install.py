@@ -29,9 +29,13 @@ REPO = Path(__file__).resolve().parent.parent
 
 def check_vllm(venv: Path) -> tuple[str, str, str]:
     """Return (level, message, version_string). Empty version on failure."""
+    # Developer venv layout: <root>/Scripts/python.exe
+    # Portable embedded Python layout: <root>/python.exe (no Scripts/)
     py = venv / "Scripts" / "python.exe"
     if not py.exists():
-        return ("RED", f"no python.exe at {py}", "")
+        py = venv / "python.exe"
+    if not py.exists():
+        return ("RED", f"no python.exe under {venv}", "")
     try:
         out = subprocess.check_output(
             [str(py), "-c", "import vllm; print(vllm.__version__)"],
@@ -135,9 +139,25 @@ def check_msvc() -> tuple[str, str]:
     return ("YEL", "MSVC not found — fine for TRITON_ATTN; FlashInfer JIT would fail")
 
 
+def _default_venv() -> Path:
+    """Mirror snapshots/_common._resolve_vllm_exe() priority.
+
+    The portable release installs vLLM directly into the embedded Python's
+    site-packages, so the runtime root is ``REPO/python``, not ``REPO/venv``.
+    Developer checkouts use a real venv. Pick whichever has python.exe.
+    """
+    dev = REPO / "venv"
+    if (dev / "Scripts" / "python.exe").exists():
+        return dev
+    portable = REPO / "python"
+    if (portable / "Scripts" / "python.exe").exists() or (portable / "python.exe").exists():
+        return portable
+    return dev  # report the missing dev venv if neither exists
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--venv", default=str(REPO / "venv"))
+    ap.add_argument("--venv", default=str(_default_venv()))
     args = ap.parse_args()
 
     venv = Path(args.venv)
