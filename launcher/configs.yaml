@@ -452,7 +452,7 @@ windows:
         See docs/SM120_GDN_CEILING.md for the full investigation history.
 
     - id: rtx5090_nvfp4_vision
-      tagline: 5090 NVFP4 + vision (image/video input) — 120k ctx
+      tagline: 5090 NVFP4 + vision (image/video input) — 180k ctx
       tier: active
       status: experimental
       arch: blackwell
@@ -463,7 +463,7 @@ windows:
       pp: 1
       mem_util: 0.95
       mtp_n: 6
-      ctx: 120000
+      ctx: 180000
       port: 5004
       decode_tps: null
       prefill_tps_cold: null
@@ -491,9 +491,11 @@ windows:
             the vision tower at first boot — expect 10-15 min cold warmup
             (vs ~9 min for the text-only NVFP4).
 
-        Headroom strategy: ctx dropped 200k -> 120k vs the text twin to
+        Headroom strategy: ctx dropped 200k -> 180k vs the text twin to
         absorb the encoder + per-image KV cost while keeping mem_util at
-        0.95. If you OOM at boot:
+        0.95. Measured at boot: KV pool = 66,912 tokens, max-concurrency
+        1.22x at 180,000 tokens per request — comfortable headroom at
+        max_num_seqs=1. If you OOM at boot:
           - lower CTX (open the editor with `e`) until vLLM's printed
             ceiling fits, OR
           - drop --limit-mm-per-prompt (currently image=4, video=1) to
