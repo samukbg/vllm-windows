@@ -97,6 +97,13 @@ def main() -> int:
     env["VLLM_SLEEP_WHEN_IDLE"] = "1"
     env["VLLM_ENABLE_CUDAGRAPH_GC"] = "1"
     env["VLLM_ALLOW_LONG_MAX_MODEL_LEN"] = "1"
+    # Pre-pin FlashInfer's target arch so it skips the import-time
+    # torch.cuda.get_device_capability probe. On the cu130 wheel that
+    # probe raises "SM 12.x requires CUDA >= 12.9" twice on stderr
+    # before flashinfer falls back; setting the env var short-circuits
+    # the probe entirely. RTX 5090 is sm_120; the wheel is built with
+    # compute_120 (non-suffixed) per docs/SM120_GDN_CEILING.md.
+    env["FLASHINFER_CUDA_ARCH_LIST"] = "12.0"
     env["VLLM_MARLIN_USE_ATOMIC_ADD"] = "1"
     env["RAY_memory_monitor_refresh_ms"] = "0"
     env["OMP_NUM_THREADS"] = "1"

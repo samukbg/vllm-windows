@@ -78,6 +78,15 @@ def port_in_use(host: str, port: int) -> bool:
 
 
 def main() -> int:
+    # Set FLASHINFER_CUDA_ARCH_LIST before any flashinfer import (including
+    # the in-process import done by cache_env_stamp_check below). Otherwise
+    # flashinfer.compilation_context's module-level init calls
+    # torch.cuda.get_device_capability() which on the cu130 wheel logs
+    # "Failed to get device capability: SM 12.x requires CUDA >= 12.9."
+    # twice on stderr before falling back. RTX 5090 is sm_120; the wheel
+    # is built with compute_120 (non-suffixed) per docs/SM120_GDN_CEILING.md.
+    os.environ.setdefault("FLASHINFER_CUDA_ARCH_LIST", "12.0")
+
     if not VLLM_EXE.exists():
         print(f"[ERROR] vllm.exe not found at {VLLM_EXE}", file=sys.stderr)
         return 1
@@ -96,6 +105,8 @@ def main() -> int:
     cache_env_stamp_check(snapshot_py=Path(__file__))
 
     env = clean_cuda_env(os.environ)
+    # FLASHINFER_CUDA_ARCH_LIST was set at the top of main() and is
+    # in os.environ; clean_cuda_env preserves it on the way through.
     _msvc = msvc_env()
     env.update(_msvc)
     env.update(flashinfer_sampler_env(_msvc))
