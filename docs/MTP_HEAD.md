@@ -5,17 +5,30 @@ only works if the model weights ship an **MTP head in BF16**. The vLLM
 `Qwen3_5MTP` loader looks for tensors named `mtp.fc.*` and refuses (silently)
 to use them if they're quantised.
 
-This is why every fast Windows config in this fork uses
+This is why every fast **INT4** Windows config in this fork uses
 [`Lorbus/Qwen3.6-27B-int4-AutoRound`](https://huggingface.co/Lorbus/Qwen3.6-27B-int4-AutoRound)
 specifically:
 
 - **Lorbus AutoRound** keeps `mtp.fc` in BF16 (~280 MiB extra), and the loader
   finds it.
-- Other Qwen3.6-27B quants, `cyankiwi`, `groxaxo/Qwen3.6-GPTQ-Pro-4bit`, etc.
+- Other Qwen3.6-27B INT4 quants, `cyankiwi`, `groxaxo/Qwen3.6-GPTQ-Pro-4bit`, etc.
  , either OOM trying to allocate a fresh BF16 head on a 24 GB card, or
   quantise the head to INT4 along with the body. The loader silently skips
   the quantised head, MTP runs, and you get **0 % draft acceptance**, no
   speedup, no error message.
+
+**NVFP4 on Blackwell is a separate path.** The
+[`Peutlefaire/Qwen3.6-27B-NVFP4`](https://huggingface.co/Peutlefaire/Qwen3.6-27B-NVFP4)
+weights ship their own bundled MTP head (distinct from the official
+Qwen MTP head Lorbus AutoRound preserves) and load via
+`--quantization=compressed-tensors`. NVFP4 has been the default on
+RTX 5090 since v1.3.0 (`rtx5090_nvfp4` snapshot) because it routes
+FFN GEMMs through FlashInfer's sm_120 native FP4 tensor cores and
+escapes the 170 W prefill ceiling AutoRound hits on consumer
+Blackwell. The "Lorbus AutoRound is the only working MTP path"
+thesis still holds **for INT4 quants**; it does not apply to NVFP4.
+See [`BLACKWELL.md`](BLACKWELL.md) and
+[`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md) for the full story.
 
 ## How to tell if MTP is actually working
 

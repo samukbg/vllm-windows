@@ -206,7 +206,7 @@ On Windows, `set QWEN_LOCAL_URL=...` in cmd or
    You should see a JSON `data` array with one entry whose
    `max_model_len` matches the active snapshot's `--max-model-len`
    (90000 for `start_speed`, 127000 for `start_127k`, 240000 for
-   `rtx5090`, 280000 for `rtx5090_max`, 160000 for `pp2_160k`, etc.).
+   `rtx5090` / `rtx5090_nvfp4`, 280000 for `rtx5090_max`, 160000 for `pp2_160k`, etc.).
 2. Pi picks up the extension: launch `pi` and run `/model`. The list
    should include `Qwen3.6 27B (local, ... ctx)` and the number in
    parens should match step 1.
@@ -230,7 +230,8 @@ triggers when Pi's running token count crosses the model's
 `contextWindow` always equals the running snapshot's
 `--max-model-len`, so compaction kicks in at the right moment whether
 you're on `start_speed` (90 k), `start_127k` (127 k), `pp2_160k`
-(160 k), or `rtx5090_max` (280 k).
+(160 k), `rtx5090_nvfp4` (240 k, Blackwell default), or
+`rtx5090_max` (280 k).
 
 If you hand-edited the extension to use a static
 `contextWindow`, Pi will either compact too early (wasting context)

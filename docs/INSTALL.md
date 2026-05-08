@@ -118,8 +118,13 @@ What each row means:
 
 ## Model weights
 
-The default model is
+The default model on Ampere/Ada is
 [`Lorbus/Qwen3.6-27B-int4-AutoRound`](https://huggingface.co/Lorbus/Qwen3.6-27B-int4-AutoRound).
+On Blackwell (RTX 5090) the default since v1.3.0 is
+[`Peutlefaire/Qwen3.6-27B-NVFP4`](https://huggingface.co/Peutlefaire/Qwen3.6-27B-NVFP4),
+loaded by the `rtx5090_nvfp4` snapshot via the separate
+`VLLM_NVFP4_MODEL_DIR` env var; AutoRound INT4 stays available as
+`rtx5090` / `rtx5090_max`. See [`BLACKWELL.md`](BLACKWELL.md).
 Download with `huggingface-cli` or `snapshot_download`:
 
 ```powershell

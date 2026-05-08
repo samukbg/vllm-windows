@@ -14,6 +14,14 @@ re-bench 2026-05-06). MTP-on-Blackwell sweep across n=3..n=8 is still
 TBD; the value chosen is the 3090-tuned long-prompt peak rather than
 re-swept on Blackwell.
 
+Since v1.3.0 the Blackwell default snapshot is `rtx5090_nvfp4`
+(`Peutlefaire/Qwen3.6-27B-NVFP4`, `--quantization=compressed-tensors`),
+not AutoRound INT4. NVFP4 has its own bundled MTP head (separate from
+the official Qwen MTP head Lorbus AutoRound preserves) and the same
+TP=1 + MTP row applies. AutoRound `rtx5090` / `rtx5090_max` remain as
+alternates. See [`BLACKWELL.md`](BLACKWELL.md) and
+[`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md).
+
 **PP=2 status (2026-05-07).** The Ampere `pp2_160k` snapshot was broken
 on every release prior to v1.3.3 — the `+devnen.1` wheel didn't carry
 the Windows ZMQ ipc -> tcp swap, so PP=2 crashed at engine init with

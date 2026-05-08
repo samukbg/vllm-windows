@@ -12,7 +12,7 @@ Skim this first, prose follows.
 | RTX 3080, A40, A6000, A5000, A100 | Ampere / sm_86 / sm_80 | default zip | 🟡 should work, untested | Same code path as 3090. Please post numbers. |
 | RTX 4090, 4080, 4070 Ti Super | Ada / sm_89 | default zip | 🟡 should work, untested | Same code path as 3090; expect higher numbers. |
 | RTX 4060 Ti 16 GB, 4070 12 GB | Ada / sm_89 | default zip | 🟡 tight on VRAM | 27B INT4 weights are 16.96 GiB; needs boot-quiet + small ctx, or step down to Qwen3-14B. |
-| RTX 5090 | Blackwell / sm_120 | **`-blackwell` zip** | ✅ tested | **158.1 tok/s** on `rtx5090` (ctx 240k, MTP n=6, 575W) — default. 154.3 on `rtx5090_max` (280k, n=3). See [`BLACKWELL.md`](BLACKWELL.md). |
+| RTX 5090 | Blackwell / sm_120 | **`-blackwell` zip** | ✅ tested | **`rtx5090_nvfp4` (NVFP4) is the default since v1.3.0**: ~5,300 tok/s prefill at 47 k prompt, ~92 tok/s decode at 200 k ctx (escapes the 170 W AutoRound prefill ceiling on consumer Blackwell). AutoRound INT4 alternates: 158.1 tok/s on `rtx5090` (240 k, MTP n=6, 575 W), 154.3 on `rtx5090_max` (280 k, n=3). See [`BLACKWELL.md`](BLACKWELL.md) and [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md). |
 | RTX 5070, 5080, 5060 | Blackwell / sm_120 | **`-blackwell` zip** | 🟡 should work, untested | Same wheel, same snapshots. 5060 (8 GB) won't fit 27B; use a smaller model. |
 | GTX 1080 Ti, 1080, GT 1030 | Pascal / sm_61 | none | ❌ won't work | No BF16 in hardware; Marlin INT4 needs sm_80+. Use llama.cpp. |
 | RTX 2080 Ti, 2070 Super | Turing / sm_75 | none | ❌ won't work | Marlin INT4 needs sm_80+. Use llama.cpp. |
@@ -91,12 +91,15 @@ Verified end-to-end on a single RTX 5090 (driver 596.36, sm_120) on
   import-time `CDLL` succeeds. Driver 596+ remains the only host
   requirement.
 
-The Blackwell zip ships two single-card 5090 snapshots:
+The Blackwell zip ships three single-card 5090 snapshots. **`rtx5090_nvfp4`
+(NVFP4) is the default since v1.3.0**; the two AutoRound INT4 snapshots
+remain as alternates for users who prefer the INT4 path.
 
-| Snapshot      | ctx  | MTP n | mem_util | Short decode | 24k decode | 24k prefill |
-|---------------|------|-------|----------|--------------|------------|-------------|
-| `rtx5090`     | 240k | 6     | 0.95     | **158.1 tok/s** | **107.8 tok/s** | 3,100–3,300 tok/s |
-| `rtx5090_max` | 280k | 3     | 0.95     | 154.3 tok/s     | 90.2 tok/s      | 3,100–3,300 tok/s |
+| Snapshot         | Quant | ctx  | MTP n | mem_util | Short decode | 24k decode | 24k prefill |
+|------------------|-------|------|-------|----------|--------------|------------|-------------|
+| `rtx5090_nvfp4`  | NVFP4 (`Peutlefaire/Qwen3.6-27B-NVFP4`, `--quantization=compressed-tensors`) | 240k | 6 | 0.95 | see [`BLACKWELL.md`](BLACKWELL.md) | ~92 tok/s @ 200k | ~5,300 tok/s @ 47k |
+| `rtx5090`        | AutoRound INT4 | 240k | 6     | 0.95     | **158.1 tok/s** | **107.8 tok/s** | 3,100–3,300 tok/s |
+| `rtx5090_max`    | AutoRound INT4 | 280k | 3     | 0.95     | 154.3 tok/s     | 90.2 tok/s      | 3,100–3,300 tok/s |
 
 (575W power cap, v1.2.3, `--no-enable-prefix-caching` — v1.2.5 re-enables prefix caching now that vLLM PR #25752 ships in the wheel; 12-16k prefill jumps ~3-4x, 24k+ prompts no longer time out. See [`BLACKWELL.md`](BLACKWELL.md). Earlier 500W
 baseline was 124.9 / 138.0 short decode. The third "speed" snapshot

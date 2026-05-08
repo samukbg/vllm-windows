@@ -131,9 +131,10 @@ Qwen Code reads settings from, in priority order:
 
 From this launcher, pick a snapshot. On the Ampere/Ada zip,
 `start_speed` (90 k ctx) and `start_127k` (127 k ctx) are good
-defaults for code work. On the Blackwell zip, `rtx5090` (240 k ctx)
-is the default and `rtx5090_max` (280 k ctx) covers whole-codebase
-sessions. Wait until the log shows `Application startup complete.`.
+defaults for code work. On the Blackwell zip, `rtx5090_nvfp4`
+(NVFP4, 240 k ctx) is the default since v1.3.0, with `rtx5090` and
+`rtx5090_max` (AutoRound INT4, 240 k / 280 k ctx) as alternates that
+cover the whole-codebase profile. See [`BLACKWELL.md`](BLACKWELL.md). Wait until the log shows `Application startup complete.`.
 
 Then in any project directory:
 

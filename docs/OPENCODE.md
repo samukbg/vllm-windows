@@ -127,8 +127,9 @@ A few things that bite people:
 - **`limit.context`** should match your snapshot's `--max-model-len`.
   On the Ampere/Ada zip: `start_72tps` 32000, `start_speed` 90000,
   `start_127k` / Unsloth tunes 127000, `start_pp2_160k` 160000,
-  `start_gpu0_50k` 50000. On the Blackwell zip: `rtx5090` 240000,
-  `rtx5090_max` 280000.
+  `start_gpu0_50k` 50000. On the Blackwell zip: `rtx5090_nvfp4` 240000
+  (NVFP4 default since v1.3.0), `rtx5090` 240000 (AutoRound INT4
+  alternate), `rtx5090_max` 280000 (AutoRound INT4 alternate).
 
 `@ai-sdk/openai-compatible` is the right adapter here because the
 shipped snapshots serve `/v1/chat/completions`. The other adapter,

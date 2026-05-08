@@ -178,7 +178,7 @@ them lightly. Full reasoning is in
 [`docs/HALLUCINATED_FLAGS.md`](HALLUCINATED_FLAGS.md) and
 [`docs/COHERENCE.md`](COHERENCE.md):
 
-- `--quantization=auto-round` (Lorbus weights only).
+- `--quantization=auto-round` for Lorbus AutoRound INT4 weights (every Ampere/Ada snapshot, plus `rtx5090` / `rtx5090_max`); `--quantization=compressed-tensors` for the NVFP4 snapshot `rtx5090_nvfp4` (Blackwell default since v1.3.0, weights `Peutlefaire/Qwen3.6-27B-NVFP4`). See [`BLACKWELL.md`](BLACKWELL.md) and [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md).
 - `--attention-backend=TRITON_ATTN` plus
   `VLLM_ATTENTION_BACKEND=TRITON_ATTN`. FLASHINFER trips MAX_PATH on
   Windows; nothing else is supported by the Qwen3-Next hybrid arch on
