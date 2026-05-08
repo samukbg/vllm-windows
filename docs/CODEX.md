@@ -90,11 +90,29 @@ this snapshot stack yet, so if you take this path, run
 `windows_tools/check_coherence.py --port 5001` afterwards to
 confirm output is still clean.
 
+## Installing Codex CLI on Windows
+
+Two paths, pick one. Both land you on the same Rust binary (the old
+TypeScript-based npm package was retired during the rewrite). Latest
+stable as of this writing is `0.129.0` (versioned `rust-v0.129.0` on
+the GitHub releases page).
+
+```powershell
+# winget, the cleanest Windows-native install
+winget install --id OpenAI.Codex
+
+# or npm, requires Node 20+
+npm install -g @openai/codex
+```
+
+Confirm with `codex --version`.
+
 ## Codex CLI configuration
 
 Codex does not respect `OPENAI_BASE_URL` or `OPENAI_API_KEY`
 environment variables for custom providers. You have to declare the
-provider in `~/.codex/config.toml`:
+provider in `%USERPROFILE%\.codex\config.toml` (Windows-native) or
+`~/.codex/config.toml` (WSL / macOS / Linux):
 
 ```toml
 [model_providers.local_vllm]
@@ -102,6 +120,7 @@ name = "Local vLLM"
 base_url = "http://127.0.0.1:5001/v1"
 env_key = "OPENAI_API_KEY"
 wire_api = "responses"
+stream_idle_timeout_ms = 600000
 
 [profiles.qwen]
 model_provider = "local_vllm"
@@ -120,28 +139,47 @@ Notes:
 
 - The `model` field can be literally `any`; the wheel uses a
   wildcard served-model-name so any string accepts.
+- `wire_api` MUST live under `[model_providers.<id>]`. Putting it
+  under `[profiles.<name>]` silently does nothing and Codex falls
+  back to the default, which on current versions is a hard error.
+- `stream_idle_timeout_ms` defaults to 300000 (5 minutes). On a long
+  thinking response or a cold-kernel first request, Qwen3.6 can sit
+  quiet long enough to trip that. Bumping it to 10 minutes avoids
+  spurious mid-generation disconnects.
+- Optional fields the provider block accepts if you need them:
+  `query_params` (extra query string pairs, e.g. `api-version` for
+  Azure-shaped endpoints), `http_headers` and `env_http_headers`
+  (static or env-sourced extra headers), `request_max_retries`,
+  `stream_max_retries`.
 - Do not use `codex --oss`. That mode hardcodes Ollama-only
   endpoints (`/api/tags`, `/api/pull`) which do not exist on vLLM
   and you will get 404s during model discovery.
-- `wire_api = "responses"` is required for current Codex versions.
-  Codex 0.80 and earlier accepted `wire_api = "chat"` which routes
-  through `/v1/chat/completions` and avoids the `developer` role
-  problem entirely, but that path was removed in February 2026.
+- `wire_api = "responses"` is required. Codex 0.80 and earlier
+  accepted `wire_api = "chat"` which routed through
+  `/v1/chat/completions` and avoided the `developer` role problem
+  entirely, but that path was deprecated in December 2025 and
+  removed around February 2026. Current versions hard-error if you
+  set it.
 
 ## Verifying it works
 
-After patching the template and configuring Codex:
+After configuring Codex (and patching the template if you are on
+v1.0 or older):
 
-1. Restart the snapshot so the new template is loaded.
+1. Restart the snapshot so the template is loaded.
 2. Run `codex --profile qwen` in any project directory.
 3. Ask Codex to read a file. The first request hits
-   `/v1/responses`. If you see normal output instead of the 400, the
-   patch is working.
+   `/v1/responses`. If you see normal output instead of a 400, the
+   wiring is good.
 
-If you still see `Unexpected message role.` in the vLLM log, the
-snapshot is loading a different template than the one you patched.
-Check the `--chat-template` flag in your snapshot file matches the
-file you edited.
+To skip the `--profile` flag every launch, add `profile = "qwen"` at
+the top of `config.toml` (above any `[...]` section). Codex picks it
+up as the default.
+
+If you still see `Unexpected message role.` in the vLLM log on v1.0
+or older, the snapshot is loading a different template than the one
+you patched. Check the `--chat-template` flag in your snapshot file
+matches the file you edited.
 
 ## Why the patch is now shipped by default
 

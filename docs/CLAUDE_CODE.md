@@ -2,50 +2,107 @@
 
 The bundled vLLM wheel serves Anthropic's `/v1/messages` endpoint
 natively. That means Claude Code talks to your local server the same
-way it talks to api.anthropic.com. No proxy, no LiteLLM, no
-translation layer.
+way it talks to api.anthropic.com. No proxy, no translation layer,
+no LiteLLM, no `claude-code-router`, no `claude-bridge`. Just an
+`ANTHROPIC_BASE_URL` env var.
+
+If you have used local LLMs with Claude Code before and ended up
+stacking a proxy in front of an OpenAI-compatible server, you do
+not need that here. Skip straight to step 2.
 
 ## Quick start
 
-1. Start the server. Pick any snapshot in the launcher (the default is
-   `start_72tps` on port 5001), or run headless:
+1. Install Claude Code (Node 20+ required):
 
    ```powershell
-   start.bat --headless --snapshot start_72tps
+   npm install -g @anthropic-ai/claude-code
+   ```
+
+   Confirm with `claude --version`. On Windows, Anthropic's docs
+   recommend running inside Git Bash or WSL2; native PowerShell
+   works for the `claude` command itself but a few of its built-in
+   bash-flavoured tools assume a POSIX-ish shell.
+
+2. Start the server. Pick any snapshot in the launcher (the default
+   is `start_speed` on port 5001 for Ampere/Ada, `rtx5090` on port
+   5001 for Blackwell), or run headless:
+
+   ```powershell
+   start.bat --headless --snapshot start_speed
    ```
 
    Wait until the log shows `Application startup complete.`
 
-2. Point Claude Code at the server. Easiest is to put this in
-   `~/.claude/settings.json` (or `%USERPROFILE%\.claude\settings.json`
-   on Windows):
+3. Point Claude Code at the server. Easiest is to put this in
+   `%USERPROFILE%\.claude\settings.json` (or `~/.claude/settings.json`
+   on Linux/macOS):
 
    ```json
    {
      "env": {
        "ANTHROPIC_BASE_URL": "http://127.0.0.1:5001",
-       "ANTHROPIC_API_KEY": "dummy",
        "ANTHROPIC_AUTH_TOKEN": "dummy",
+       "ANTHROPIC_API_KEY": "dummy",
+       "ANTHROPIC_MODEL": "any",
+       "ANTHROPIC_SMALL_FAST_MODEL": "any",
        "ANTHROPIC_DEFAULT_OPUS_MODEL": "any",
        "ANTHROPIC_DEFAULT_SONNET_MODEL": "any",
-       "ANTHROPIC_DEFAULT_HAIKU_MODEL": "any",
-       "ANTHROPIC_DEFAULT_HAIKU_BACKGROUND_MODEL": "any"
+       "ANTHROPIC_DEFAULT_HAIKU_MODEL": "any"
      }
    }
    ```
 
    Or export the same vars in your shell before running `claude`.
+   The `env` block is a plain string-to-string map; Claude Code
+   injects these into the session at startup.
 
-3. Run `claude` in your project. It will hit your local server.
+4. Run `claude` in your project. It will hit your local server.
+
+### Why so many model env vars
+
+Claude Code routes different internal task types (main reasoning,
+background summarisation, fast tool-arg generation) to different
+model tiers. It looks up the actual model name in this order:
+
+- `ANTHROPIC_MODEL` for the primary model.
+- `ANTHROPIC_SMALL_FAST_MODEL` for the background/quick-task slot.
+- `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`,
+  `ANTHROPIC_DEFAULT_HAIKU_MODEL` for the per-tier overrides used
+  when a request asks for a specific tier by name.
+
+I set all of them to `"any"` so every code path lands on the same
+local model regardless of which slot Claude Code is filling. The
+patched wheel uses a wildcard served-model-name (see below) so the
+literal string does not need to match anything on the server.
 
 ## Why the model name is `any`
 
-The patched wheel uses a wildcard served-model-name. Claude Code (and
-Cline, Cursor, Codex CLI, OpenWebUI) often picks model names like
-`claude-sonnet-4-5` or `claude-haiku-4-5` that don't match what vLLM
-loaded. The wildcard accepts whatever the client sends, so you don't
-have to coordinate names. `any` is the convention used in the docs;
-literally any string works.
+The patched wheel uses a wildcard served-model-name. Claude Code
+will sometimes send model names like `claude-sonnet-4-5` or
+`claude-haiku-4-5` that do not match what vLLM loaded. The wildcard
+accepts whatever the client sends, so I do not have to coordinate
+names. `"any"` is just the convention used in these docs. Any
+non-empty string works.
+
+## What about claude-code-router or claude-bridge
+
+I do not use either with this server. They are real, maintained
+projects (`musistudio/claude-code-router` is the larger one), but
+they exist to solve two problems this server does not have:
+
+- **`claude-code-router`** routes Claude Code's requests across
+  multiple backend models based on task type (e.g., heavy reasoning
+  to a 70B, background tasks to a 4B). If you have one local model
+  serving everything, you do not need it.
+- **`claude-bridge`** translates between Anthropic's `/v1/messages`
+  schema and OpenAI's `/v1/chat/completions`. This server speaks
+  `/v1/messages` natively (that is the point of the patched wheel),
+  so the translation layer is redundant.
+
+If you genuinely want per-task routing across multiple local models,
+`claude-code-router` will work in front of this server; just point
+its upstream at `http://127.0.0.1:5001`. For everything else, env
+vars are simpler.
 
 ## Why tool calling just works
 
@@ -70,8 +127,8 @@ to the top automatically.
 
 | Use case | Snapshot | Port |
 |---|---|---|
-| Daily Claude Code on a 3090 with no display attached | `start_speed` | 5001 |
-| Short prompts, max tok/s | `start_72tps` | 5001 |
+| Daily Claude Code on a 3090 with no display attached | `start_speed` (90k ctx) | 5001 |
+| Short prompts, max tok/s | `start_72tps` (32k ctx) | 5001 |
 | Long Claude Code sessions that need 127k context | `start_127k` | 5001 |
 | Single GPU, display attached | `start_gpu0_50k` | 5001 |
 | Need 160k context, have 2 GPUs | `start_pp2_160k` | 5002 |
@@ -80,8 +137,14 @@ to the top automatically.
 
 | Use case | Snapshot | Port |
 |---|---|---|
-| Daily Claude Code on a 5090, default | `rtx5090` (240k ctx) | 5001 |
+| Daily Claude Code on a 5090, default | `rtx5090_nvfp4` (NVFP4, 240k ctx) | 5001 |
+| AutoRound INT4 fallback | `rtx5090` (240k ctx) | 5001 |
 | Need >240k context for whole-codebase sessions | `rtx5090_max` (280k ctx) | 5001 |
+
+The NVFP4 snapshot is the default on 5090 since v1.3.0 because it
+routes FFN GEMMs through FlashInfer's sm_120 native FP4 tensor
+cores and bypasses the prefill power ceiling AutoRound hits on
+consumer Blackwell.
 
 If you change the port, update `ANTHROPIC_BASE_URL` to match.
 
