@@ -477,7 +477,7 @@ prefill faster — potentially raising overall throughput substantially.
 
 **Concrete test plan:**
 1. `huggingface-cli download Peutlefaire/Qwen3.6-27B-NVFP4
-   --local-dir g:\_models\Qwen3.6-27B-NVFP4`
+   --local-dir D:\models\Qwen3.6-27B-NVFP4`
 2. Clone `snapshots/start_5090.py` → `start_5090_nvfp4.py`. Swap
    `--quantization auto-round` → `--quantization compressed-tensors`.
    Point `MODEL_PATH` at the NVFP4 dir.
@@ -572,7 +572,7 @@ proves stable.
   shipped in v1.3.2): vLLM, torch, torchinductor, flashinfer. Cold
   rebuild took ~11 min and recovered to **5,393 tok/s @ 580 W** —
   matching the validated baseline. Full forensics in
-  `_local/CACHE_POISON_INCIDENT_2026-05-07.md`. Confirms the 5,300
+  internal forensic notes. Confirms the 5,300
   tok/s number is real and reproducible; not a measurement artifact.
   v1.3.2 ships `clean_cuda_env()` and `preflight_sm120a_or_die()` so
   the original poisoning is no longer reachable from a normal install.

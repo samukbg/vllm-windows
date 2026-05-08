@@ -89,7 +89,7 @@ new file.
 Every `.bat` is double-clickable. From cmd:
 
 ```cmd
-set VLLM_MODEL_DIR=G:\_models\Qwen3.6-27B-int4-AutoRound
+set VLLM_MODEL_DIR=D:\models\Qwen3.6-27B-int4-AutoRound
 snapshots\start_speed.bat
 ```
 

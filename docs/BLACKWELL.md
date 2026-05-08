@@ -14,7 +14,7 @@ Single landing page for everything Blackwell. If you have an RTX 5060,
 3. Extract anywhere, double-click `start.bat`, pick a 5090 snapshot:
    - **`rtx5090_nvfp4`** (200k ctx, **NVFP4 weights, default since v1.3.0** —
      escapes the 170W prefill ceiling, ~5x faster prefill than AutoRound).
-     Requires the NVFP4 weights at `g:\_models\Qwen3.6-27B-NVFP4` (or set
+     Requires the NVFP4 weights at `D:\models\Qwen3.6-27B-NVFP4` (or set
      `VLLM_NVFP4_MODEL_DIR`); the launcher does not auto-download these yet.
    - `rtx5090` (240k ctx, AutoRound INT4 — alternative when you need >200k ctx).
    - `rtx5090_max` (280k ctx, AutoRound INT4 — for the largest contexts).
@@ -117,7 +117,7 @@ AutoRound INT4 hits on consumer Blackwell — the GDN linear-attention
 layers are still slow for their 10/40 layer share, but FFN dominates
 prefill FLOPs and is now firing at full 575W. Set `VLLM_NVFP4_MODEL_DIR`
 to point at the weights directory; default location is
-`g:\_models\Qwen3.6-27B-NVFP4`. **First boot is slow** (~9 min while
+`D:\models\Qwen3.6-27B-NVFP4`. **First boot is slow** (~9 min while
 FlashInfer autotunes `fp4_gemm` per GEMM shape); subsequent boots cache
 the picks and start in ~2 min. See
 [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md) for the full
@@ -220,8 +220,7 @@ installed system-wide. The four user environment classes are:
    FlashInfer log `Failed to get device capability: SM 12.x requires
    CUDA >= 12.9` and silently fall back, then bake slow fp4_gemm
    tactics into vLLM's AOT compile cache. See
-   `_local/CACHE_POISON_INCIDENT_2026-05-07.md` for the exact
-   reproduction.
+   internal forensic notes for the exact reproduction.
 3. **System CUDA 13.x** — devs with a CUDA 13 Toolkit installed. Worked
    accidentally before v1.3.2; scrubbed for uniformity now.
 4. **Conda / Mamba with `cudatoolkit`** — DLLs live under

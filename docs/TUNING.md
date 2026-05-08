@@ -136,8 +136,7 @@ python windows_tools\wipe_caches.py
 
 Then relaunch the snapshot. v1.3.2's `clean_cuda_env()` and
 `preflight_sm120a_or_die()` prevent the original poisoning, but a
-cache populated under a pre-v1.3.2 boot can still be sticky. The full
-forensic write-up is in `_local/CACHE_POISON_INCIDENT_2026-05-07.md`.
+cache populated under a pre-v1.3.2 boot can still be sticky.
 
 ## Prefill TPS
 

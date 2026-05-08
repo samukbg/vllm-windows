@@ -11,7 +11,7 @@
 > plus a worker-pipe `_ConnectionBase` widening on the Ampere wheel
 > (the Blackwell wheel inherited that piece from upstream 0.20.0).
 > PP=2 boots cleanly and decodes within ~10 % of the documented
-> 40.3 tok/s on 2× RTX 3090 (verified on a real Designare reference
+> 40.3 tok/s on 2× RTX 3090 (verified on a real 2× RTX 3090 reference
 > box, 2026-05-07).
 >
 > Two more bench-side fixes:
@@ -55,7 +55,7 @@
 >
 > Then relaunch. Cold rebuild takes ~11–25 min. Subsequent boots are
 > back to the documented 3–8 min. Full forensic write-up in
-> `_local/CACHE_POISON_INCIDENT_2026-05-07.md`. Hygiene-only edit on
+> internal forensic notes. Hygiene-only edit on
 > Ampere/Ada paths; they keep the legacy `cuda_env()` semantics and
 > aren't exposed to this class of bug.
 

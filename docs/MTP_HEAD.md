@@ -47,7 +47,7 @@ If you want to try a different 27B quant with MTP:
 2. **Or grep the safetensors index** for `mtp.fc` weights and verify the
    dtype is `BF16`/`F16`:
    ```powershell
-   .\venv\Scripts\python.exe -c "from safetensors import safe_open; f=safe_open(r'G:\_models\<model>\model-00001-of-NNN.safetensors','pt'); [print(k, f.get_tensor(k).dtype) for k in f.keys() if 'mtp' in k]"
+   .\venv\Scripts\python.exe -c "from safetensors import safe_open; f=safe_open(r'D:\models\<model>\model-00001-of-NNN.safetensors','pt'); [print(k, f.get_tensor(k).dtype) for k in f.keys() if 'mtp' in k]"
    ```
 3. **Run the launcher's coherence check** with MTP on, watch the
    acceptance rate. If it's near zero, the quant's head is unusable.

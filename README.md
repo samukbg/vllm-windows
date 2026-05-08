@@ -301,7 +301,7 @@ applies the tokenizer patch automatically, and execs the chosen
 snapshot, all without opening the TUI. Other useful flags:
 
 ```powershell
-start.bat --model-dir G:\_models\Qwen3.6-27B-int4-AutoRound --snapshot start_speed
+start.bat --model-dir D:\models\Qwen3.6-27B-int4-AutoRound --snapshot start_speed
 start.bat --headless     :: skip TUI, run the default snapshot (start_72tps)
 start.bat --setup-only   :: install runtime + model, then exit (no serving)
 ```

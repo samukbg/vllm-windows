@@ -70,7 +70,7 @@ You can launch any snapshot directly:
 
 ```powershell
 $env:VLLM_WINDOWS_VENV = "$PWD\venv"
-$env:VLLM_MODEL_DIR    = "G:\_models\Qwen3.6-27B-int4-AutoRound"
+$env:VLLM_MODEL_DIR    = "D:\models\Qwen3.6-27B-int4-AutoRound"
 .\snapshots\start_speed.bat
 ```
 
@@ -123,16 +123,16 @@ The default model is
 Download with `huggingface-cli` or `snapshot_download`:
 
 ```powershell
-$env:HF_HOME = "G:\_hf_cache"
+$env:HF_HOME = "D:\hf_cache"
 huggingface-cli download Lorbus/Qwen3.6-27B-int4-AutoRound `
-    --local-dir G:\_models\Qwen3.6-27B-int4-AutoRound
+    --local-dir D:\models\Qwen3.6-27B-int4-AutoRound
 ```
 
 After downloading, **always** verify shard SHAs and patch the tokenizer:
 
 ```powershell
-python windows_tools\verify_model_sha.py G:\_models\Qwen3.6-27B-int4-AutoRound
-python windows_tools\patch_tokenizer.py  G:\_models\Qwen3.6-27B-int4-AutoRound
+python windows_tools\verify_model_sha.py D:\models\Qwen3.6-27B-int4-AutoRound
+python windows_tools\patch_tokenizer.py  D:\models\Qwen3.6-27B-int4-AutoRound
 ```
 
 `verify_model_sha.py` catches torrent-like corruption that produces

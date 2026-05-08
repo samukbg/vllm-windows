@@ -20,7 +20,7 @@ the Windows ZMQ ipc -> tcp swap, so PP=2 crashed at engine init with
 `ZMQError: Protocol not supported`. Fixed in `+devnen.2` (Ampere), and
 the matching `+cu132.devnen.2` Blackwell wheel carries the same fix.
 Verified clean boot, coherence, and ~10 % of documented 40.3 tok/s on
-2× RTX 3090 (Designare reference box). PP=2 + MTP / PP=2 + ngram
+2× RTX 3090 (reference box). PP=2 + MTP / PP=2 + ngram
 remain blocked by the upstream `Qwen3NextMTP.SupportsPP` /
 `'GPUModelRunner' object has no attribute 'drafter'` bugs and have not
 been re-tested on 0.20.
