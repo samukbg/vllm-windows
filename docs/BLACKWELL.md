@@ -16,6 +16,10 @@ Single landing page for everything Blackwell. If you have an RTX 5060,
      escapes the 170W prefill ceiling, ~5x faster prefill than AutoRound).
      Requires the NVFP4 weights at `D:\models\Qwen3.6-27B-NVFP4` (or set
      `VLLM_NVFP4_MODEL_DIR`); the launcher does not auto-download these yet.
+   - **`rtx5090_nvfp4_vision`** (180k ctx, same NVFP4 weights, vision/video
+     input enabled). The Peutlefaire NVFP4 quant preserves the unquantized
+     visual tower, so vision is a flag flip on the same weights. Trades
+     ~20k ctx vs the text twin to cover the vision encoder + per-image KV.
    - `rtx5090` (240k ctx, AutoRound INT4 — alternative when you need >200k ctx).
    - `rtx5090_max` (280k ctx, AutoRound INT4 — for the largest contexts).
 
@@ -102,12 +106,15 @@ to `ampere` for anything that doesn't start with `rtx5090`.
 
 ## The 5090 snapshots
 
-The Blackwell zip ships three single-card 5090 snapshots, all GPU0,
-port 5001 (mutually exclusive — pick one), attention backend
+The Blackwell zip ships four single-card 5090 snapshots — all GPU0,
+attention backend
 TRITON_ATTN, KV dtype fp8_e4m3, with a randomised
 `--data-parallel-rpc-port` (see "RPC port leak" below) and **no**
 `VLLM_ATTENTION_BACKEND` env var (deprecated in 0.20.0; the CLI flag
-still works):
+still works). The three text-only snapshots all listen on port 5001
+(mutually exclusive — pick one); the vision snapshot listens on 5004
+so you can run it alongside a text snapshot if you want both endpoints
+live at once:
 
 **`rtx5090_nvfp4` is the new default since v1.3.0.** It uses NVFP4
 weights ([`Peutlefaire/Qwen3.6-27B-NVFP4`](https://huggingface.co/Peutlefaire/Qwen3.6-27B-NVFP4),
@@ -130,11 +137,28 @@ ships at 200k due to NVFP4 KV-cache footprint), or when you want to
 use the same Lorbus weights you already have on disk for the Ampere/Ada
 zip.
 
+**`rtx5090_nvfp4_vision` enables image and video input** on the same
+NVFP4 weights. The Peutlefaire quant deliberately keeps the visual
+tower unquantized (the recipe's `ignore` list excludes
+`re:visual.*` / `re:model.visual.*`), so the vision encoder is already
+on disk — loading it is a CLI flag flip, not a different model. VRAM
+cost vs the text twin: ~2 GiB of unquantized vision-tower weights stay
+resident, plus a 16,384-token encoder cache for image features. Context
+is dropped 200k -> 180k to absorb that. Measured at boot:
+`Available KV cache memory: 8.75 GiB`, `GPU KV cache size: 66,912
+tokens`, `Maximum concurrency for 180,000 tokens per request: 1.22x`.
+Listens on port 5004 (the text NVFP4 default is 5001). Cold first boot
+takes longer than the text twin (FlashInfer autotunes the vision-tower
+GEMM shapes too — expect 12–15 min vs ~9 min); subsequent boots cache
+the picks. `--limit-mm-per-prompt` defaults to `image=4, video=1`; lower
+that if you OOM at boot.
+
 **Bench 2026-05-06 (v1.2.3, 575W power cap, `--no-enable-prefix-caching` shipped from v1.2.2, median of 3 × 200-token short runs).** v1.2.5 re-enables prefix caching (vLLM PR #25752 / Mamba2 APC in the wheel auto-applies `mamba_cache_mode='align'`); see the v1.2.5 notes below the table.
 
 | Snapshot           | ctx  | MTP n | mem_util | Short/300-tok decode | 24k prefill | 47k prefill | Use it when |
 |--------------------|------|-------|----------|---------------------|-------------|-------------|-------------|
 | `rtx5090_nvfp4`    | 200k | 6     | 0.95     | **~92 tok/s**       | **~7,460 tok/s @ 580W** | **~5,300 tok/s @ 584W** | **Default since v1.3.0.** Full TDP prefill via FlashInfer sm_120 native FP4. ~5x AutoRound prefill, ~25% faster decode. Quality tied with AutoRound on a small coding slice (see eval caveat). |
+| `rtx5090_nvfp4_vision` | 180k | 6 | 0.95 | not yet benched | not yet benched | not yet benched | Same NVFP4 weights with the visual tower loaded. Image + video input via `--limit-mm-per-prompt={"image":4,"video":1}`. Listens on port 5004. KV pool at 180k: 66,912 tokens / max-concurrency 1.22x. Status: experimental until a multimodal smoke test is wired into the coherence harness. |
 | `rtx5090`          | 240k | 6     | 0.95     | **158.1 tok/s** (24k decode 107.8) | 3,100–3,300 tok/s | n/a (170W cap) | AutoRound alternative. 240k context. Higher short-decode tok/s than NVFP4 due to MTP acceptance pattern, but prefill capped at ~170W on long unique-word prompts. |
 | `rtx5090_max`      | 280k | 3     | 0.95     | 154.3 tok/s (24k decode 90.2)      | 3,100–3,300 tok/s | n/a (170W cap) | AutoRound alternative for >240k context. 4% slower short decode than `rtx5090`, 16% slower long decode. |
 

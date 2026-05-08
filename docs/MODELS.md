@@ -7,7 +7,8 @@ on Ampere/Ada (3090, 4090, A6000): chat template, tool-call parser,
 reasoning parser, MTP head detection, sampler defaults. On Blackwell
 (RTX 5090) the default since v1.3.0 is
 [`Peutlefaire/Qwen3.6-27B-NVFP4`](https://huggingface.co/Peutlefaire/Qwen3.6-27B-NVFP4)
-served by the `rtx5090_nvfp4` snapshot via `--quantization=compressed-tensors`;
+served by the `rtx5090_nvfp4` snapshot via `--quantization=compressed-tensors`,
+or by `rtx5090_nvfp4_vision` for image/video input on the same weights;
 AutoRound INT4 stays available as `rtx5090` / `rtx5090_max`.
 Swapping the weights for something else may work, but how cleanly
 depends on what changes.
@@ -17,7 +18,7 @@ depends on what changes.
 | Model | Status | Notes |
 |---|---|---|
 | `Lorbus/Qwen3.6-27B-int4-AutoRound` | ✅ blessed | Default on Ampere/Ada (also a Blackwell alternate). MTP head in BF16, ~17 GB on disk, 64.5 tok/s decode on 3090, 158.1 tok/s on 5090. |
-| `Peutlefaire/Qwen3.6-27B-NVFP4` | ✅ blessed (Blackwell default since v1.3.0) | NVFP4 routed via FlashInfer's sm_120 native FP4 tensor cores. Bundled MTP head. `--quantization=compressed-tensors`. Loaded by `rtx5090_nvfp4`. See [`BLACKWELL.md`](BLACKWELL.md), [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md). |
+| `Peutlefaire/Qwen3.6-27B-NVFP4` | ✅ blessed (Blackwell default since v1.3.0) | NVFP4 routed via FlashInfer's sm_120 native FP4 tensor cores. Bundled MTP head. The visual tower is deliberately preserved unquantized (the recipe's `ignore` list excludes `re:visual.*` / `re:model.visual.*`), so the same download serves both `rtx5090_nvfp4` (text-only) and `rtx5090_nvfp4_vision` (image + video input) — the difference is a CLI flag flip, not a different model. `--quantization=compressed-tensors`. See [`BLACKWELL.md`](BLACKWELL.md), [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md). |
 | Other Qwen3.6-27B INT4 quants (cyankiwi, groxaxo/Qwen3.6-GPTQ-Pro-4bit, others) | 🟡 boots but no MTP | Loader silently skips the quantised MTP head, draft acceptance ≈ 0%, decode caps at the un-speculated rate (~30-40 tok/s). See [`MTP_HEAD.md`](MTP_HEAD.md). |
 | Qwen3.6-27B FP8 | 🟡 untested | Should fit a 24 GB card with smaller ctx. Sampler defaults still apply. Please post numbers. |
 | Qwen3.6-27B INT8 | ❌ doesn't fit | Weights ~27 GiB; doesn't fit a 24 GiB card. PP=2 across 2× 24 GB works in principle but means no MTP (PP+MTP broken on 0.19), capping decode near pp2_160k's 43 tok/s. Use INT4 AutoRound. |

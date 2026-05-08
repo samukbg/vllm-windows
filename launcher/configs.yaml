@@ -451,6 +451,67 @@ windows:
 
         See docs/SM120_GDN_CEILING.md for the full investigation history.
 
+    - id: rtx5090_nvfp4_vision
+      tagline: 5090 NVFP4 + vision (image/video input) — 120k ctx
+      tier: active
+      status: experimental
+      arch: blackwell
+      bat: '${SNAPSHOTS_DIR}\start_5090_nvfp4_vision.bat'
+      py:  '${SNAPSHOTS_DIR}\start_5090_nvfp4_vision.py'
+      gpu: GPU0
+      tp: 1
+      pp: 1
+      mem_util: 0.95
+      mtp_n: 6
+      ctx: 120000
+      port: 5004
+      decode_tps: null
+      prefill_tps_cold: null
+      power_cap_w: 575
+      requires_wheel: 'vllm-0.20.0+cu132.devnen'
+      vllm_version: 0.20.0+cu132.devnen.1
+      vision_disabled: false
+      mm_image_limit: 4
+      mm_video_limit: 1
+      notes: |
+        Vision-enabled twin of rtx5090_nvfp4. Same Peutlefaire NVFP4 weights
+        (Qwen3.6-27B-NVFP4) — that quant deliberately preserves the visual
+        tower (the recipe excludes "re:visual.*" / "re:model.visual.*" from
+        NVFP4 quantization), so the vision encoder is already on disk.
+        Loading it is a flag flip, not a different model.
+
+        VRAM cost vs the text twin:
+          - Vision encoder weights resident on GPU: ~1.5-2.0 GiB BF16/F32
+            (kept unquantized — only the LM body is NVFP4)
+          - Each image consumes ~256-1280 visual tokens out of the KV pool
+            depending on its resolution. A handful of high-res images
+            can eat several thousand context tokens before the user's
+            text prompt even starts.
+          - FlashInfer also has to autotune additional GEMM shapes for
+            the vision tower at first boot — expect 10-15 min cold warmup
+            (vs ~9 min for the text-only NVFP4).
+
+        Headroom strategy: ctx dropped 200k -> 120k vs the text twin to
+        absorb the encoder + per-image KV cost while keeping mem_util at
+        0.95. If you OOM at boot:
+          - lower CTX (open the editor with `e`) until vLLM's printed
+            ceiling fits, OR
+          - drop --limit-mm-per-prompt (currently image=4, video=1) to
+            shrink the multimodal worst-case KV reservation.
+
+        decode_tps / prefill_tps_cold: not yet benched. Expect decode
+        comparable to the text twin (~92 tok/s) on text-only requests;
+        per-image prefill adds vision-encoder forward time on top.
+
+        Status is `experimental` until coherence + a multimodal smoke
+        test pass. Same MTP n=6 spec-decode setup as the text twin;
+        coherence harness still applies, plus a manual image-input
+        smoke (POST /v1/chat/completions with an image_url content
+        part).
+
+        Requires the Blackwell zip + driver 596+. Same NVFP4 model dir
+        as rtx5090_nvfp4 (override via VLLM_NVFP4_MODEL_DIR).
+
     - id: draft
       tagline: BLOCKED — no vocab=248320 drafter
       tier: blocked
