@@ -238,28 +238,44 @@ def detect_running(ports: list[int], configs) -> dict[str, RunningProc]:
 
 
 def probe_ready(port: int, host: str = "127.0.0.1", timeout: float = 1.5) -> bool:
-    """True iff the vLLM API is actually serving requests on this port.
+    """True iff vLLM has reached 'Application startup complete' on this port.
 
-    Distinguishes "vLLM is loading weights / compiling kernels" (port may or
-    may not be bound, /v1/models 404s or hangs) from "vLLM is ready" (returns
-    200 with a JSON model list).
+    Reads the snapshot's log file directly (truncated on each boot, so any
+    marker found is from the current run) instead of issuing an HTTP GET
+    against 127.0.0.1.
 
-    Bypasses the system proxy. urllib.request.urlopen honors http_proxy /
-    https_proxy env vars and the Windows IE/registry proxy settings, which
-    means a localhost GET gets routed through the corporate proxy on any box
-    that has one configured — the proxy then returns a non-200 (or hangs),
-    the launcher never moves the snapshot from LOADING into READY, and the
-    user reports "interface won't show that model is running" even though
-    vLLM logged Application startup complete (issue #12).
+    Why log-grep instead of HTTP: TUN-mode VPN clients (sing-box / Nekobox
+    TUN whitelist / Clash TUN / v2rayN TUN, etc.) intercept TCP at the
+    network-adapter layer, *below* urllib. Even with
+    urllib.request.ProxyHandler({}) — which v1.3.5 added to bypass IE/
+    registry HTTP proxies — the kernel still routes 127.0.0.1 traffic
+    through the TUN adapter when the calling python.exe is in the TUN
+    whitelist (or when sing-box's `strict_route` covers 127.0.0.0/8). The
+    HTTP probe then hangs or returns the wrong content, the launcher
+    never moves the snapshot from LOADING into READY, and the user reports
+    "interface won't show that model is running" even though vLLM logged
+    Application startup complete (issue #12, second report).
+
+    Reading a local file is immune to any network-layer interception.
+    The host / timeout params are accepted for API compatibility with
+    callers and unused.
     """
-    import urllib.request
-    try:
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        req = urllib.request.Request(f"http://{host}:{port}/v1/models")
-        with opener.open(req, timeout=timeout) as r:
-            return 200 <= r.status < 300
-    except Exception:
+    del host, timeout  # unused — kept for API stability
+    log = _logs_dir() / f"vllm_server.{port}.log"
+    if not log.is_file():
         return False
+    try:
+        size = log.stat().st_size
+        with log.open("rb") as f:
+            # Tail the last ~16 KiB; the readiness banner lands within the
+            # last few hundred bytes of a successful boot. A 16 KiB slice
+            # also keeps the read O(1) regardless of total log size.
+            if size > 16384:
+                f.seek(size - 16384)
+            data = f.read()
+    except OSError:
+        return False
+    return b"Application startup complete" in data
 
 
 def clear_manifest_for_port(port: int) -> None:
