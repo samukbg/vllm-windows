@@ -12,6 +12,22 @@
 
 ---
 
+> ## v1.3.4 — second pp2_160k crash on Ampere fixed
+>
+> Bug-fix release. After v1.3.3 unblocked the `ZMQError`, `pp2_160k`
+> immediately hit a second Windows-portability bug in
+> `vllm/distributed/utils.py` — `os.sched_yield()` is POSIX-only and
+> the `sched_yield()` wrapper called it unconditionally on Python
+> 3.11+/3.10.8+, crashing every multi-worker boot with
+> `AttributeError: module 'os' has no attribute 'sched_yield'`. New
+> Ampere wheel `vllm-0.19.0+devnen.3` adds the `sys.platform != "win32"`
+> guard so the wrapper takes the `time.sleep(0)` fallback on Windows.
+> Reported in [issue #14](https://github.com/devnen/qwen3.6-windows-server/issues/14).
+> Verified on 2× RTX 3090: `pp2_160k` boots, coherent, decodes 41.4 tok/s.
+> Single-GPU users and Blackwell users see no functional change.
+
+---
+
 > ## v1.3.3 — PP=2 fixed on Ampere, real long-prompt bench fixture
 >
 > Bug-fix release. `pp2_160k` (Both-GPU big-ctx) failed to boot on the

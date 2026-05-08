@@ -5,7 +5,7 @@
 > public release zip prior to v1.3.3 with
 > `ZMQError: Protocol not supported (addr='ipc://...')` because pyzmq
 > has no `ipc://` transport on Windows. New patched wheels —
-> `vllm-0.19.0+devnen.2` (Ampere, CUDA 12.6) and
+> `vllm-0.19.0+devnen.3` (Ampere, CUDA 12.6) and
 > `vllm-0.20.0+cu132.devnen.2` (Blackwell, CUDA 13.2) — add a
 > Windows-only ipc -> tcp fallback in `vllm/utils/network_utils.py`,
 > plus a worker-pipe `_ConnectionBase` widening on the Ampere wheel

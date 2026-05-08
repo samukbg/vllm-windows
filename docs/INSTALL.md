@@ -11,7 +11,7 @@ For users who just want it to run.
      `qwen3.6-windows-server-portable-x64-ampere.zip` (or the legacy
      unsuffixed `qwen3.6-windows-server-portable-x64.zip` alias for
      pre-v1.2.3 auto-update compatibility — same content)
-     (vLLM 0.19.0+devnen.2, CUDA 12.6 / cu126 torch). This is the default.
+     (vLLM 0.19.0+devnen.3, CUDA 12.6 / cu126 torch). This is the default.
    - **50-series (Blackwell — 5060/5070/5080/5090):**
      `qwen3.6-windows-server-portable-x64-blackwell.zip`
      (vLLM 0.20.0+cu132.devnen.2, CUDA 13.2 / cu130 torch, plus an

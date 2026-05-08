@@ -1,62 +1,65 @@
-# qwen3.6-windows-server v1.3.3
+# qwen3.6-windows-server v1.3.4
 
-Bug-fix release. Unblocks pipeline-parallel (PP=2) on the Ampere wheel,
-fixes the embedded `bench_summarize.py` import path, and ships a real
-~25 k-token long-prompt fixture so documented `decode_tps` numbers are
-reproducible from a stock install.
+Bug-fix release. Closes the second wave of `pp2_160k` boot failures on the
+public Ampere zip, surfaced after v1.3.3 unblocked the prior `ZMQError:
+Protocol not supported` crash.
 
 ## What changed
 
-- **New patched wheels: `vllm-0.19.0+devnen.2` (Ampere) and
-  `vllm-0.20.0+cu132.devnen.2` (Blackwell).** Both add a Windows-only
-  ZMQ `ipc://` -> `tcp://` fallback so `get_open_zmq_ipc_path()` works
-  on Windows (pyzmq has no `ipc://` transport). The Ampere wheel
-  additionally widens a worker-pipe `isinstance` check to
-  `_ConnectionBase` so PP=2 boots past the `wait_for_ready` assert. See
-  [devnen/vllm-windows v0.19.0-devnen.2](https://github.com/devnen/vllm-windows/releases/tag/v0.19.0-devnen.2)
-  for the diff.
-- **`pp2_160k` snapshot is functional again on the public Ampere
-  release.** Verified on a 2× RTX 3090 box (Designare) — boots, is
-  coherent, decodes within ~10 % of the documented 40.3 tok/s. Prior
-  releases shipped the wheel without those Windows fixups, so any user
-  clicking the "Both-GPU big-ctx" card hit a `ZMQError: Protocol not
-  supported` immediately.
-- **`bench_summarize.py` now runs from a stock install** without a
-  wrapper. `windows_tools/build_launcher_zip.py` adds `..\windows_tools`
-  to the embedded `python312._pth`, so `bench_summarize.py`'s
-  `import bench` (its sibling module) resolves correctly. Embedded
-  Python ignores `cwd` and `PYTHONPATH`, so the `_pth` line was the only
-  fix.
-- **`bench_prompt_sample.py` is now a real ~130 KB / ~25 k-token
-  fixture** (verbatim copy of CPython 3.12's `Lib/inspect.py` under the
-  PSF Agreement). Replaces the 670-token stub. Documented `decode_tps`
-  numbers are now reproducible from a clean install instead of being
-  artificially fast on a placeholder prompt.
+- **New Ampere wheel: `vllm-0.19.0+devnen.3`.** Adds a one-line Windows
+  guard to `vllm/distributed/utils.py` so the `sched_yield()` wrapper
+  takes the `time.sleep(0)` fallback on Windows instead of calling the
+  POSIX-only `os.sched_yield()`. The bug only fires on multi-worker
+  paths (PP>1 / TP>1) via `shm_broadcast.acquire_read`'s spin-wait, so
+  single-card snapshots are unaffected. See
+  [devnen/vllm-windows v0.19.0-devnen.3](https://github.com/devnen/vllm-windows/releases/tag/v0.19.0-devnen.3)
+  for the patched wheel and diff.
+- **Blackwell wheel unchanged at `vllm-0.20.0+cu132.devnen.2`.** The
+  upstream v0.20.0 source already inherited the same Windows guard from
+  `vllm-project/vllm` master, so 50-series users were never exposed.
+- **`pp2_160k` boots cleanly on the public Ampere zip.** Verified on a
+  2× RTX 3090 box: `Application startup complete`, KV pool 169,344
+  tokens, all 3 coherence tiers pass, decode 41.4 tok/s (95 % of the
+  documented 43.5 tok/s).
 
 ## Who is affected
 
-- 2-GPU users who clicked `pp2_160k` on the launcher dashboard — those
-  setups are usable again.
-- Anyone running `windows_tools\bench_summarize.py` against the
-  documented `decode_tps` figures — the regime now matches.
-- Single-GPU users see no functional change; the new wheel is a strict
-  superset of the +devnen.1 patch set.
+- 2-GPU users on the Ampere zip who clicked `pp2_160k` and hit
+  `AttributeError: module 'os' has no attribute 'sched_yield'` (the
+  most recent crash, after v1.3.3 fixed the previous `ZMQError`).
+  Reported in
+  [issue #14](https://github.com/devnen/qwen3.6-windows-server/issues/14).
+- Single-GPU users see no functional change. Blackwell users see no
+  functional change.
 
 ## Upgrading
 
-`update.bat` — automatic from v1.3.2. The Ampere variant pulls the new
-+devnen.2 wheel and re-runs `setup.ensure_runtime()`. Blackwell
-variant likewise.
+```
+update.bat
+```
+
+The Ampere variant pulls the new `+devnen.3` wheel and re-runs
+`setup.ensure_runtime()` automatically.
 
 ## Verification
 
-After upgrading, a quick smoke test:
+After upgrading, on a 2× GPU box:
 
 ```
-cd C:\<install>\windows_tools
-..\python\python.exe bench_summarize.py --label v1.3.3-test
+snapshots\start_pp2_160k.bat
 ```
 
-Expect TSV-appended bench output in `windows_tools/runs.tsv`, no
-`ModuleNotFoundError`, and a long-prompt prefill / decode comparable
-to (or exceeding) the snapshot's documented numbers.
+Wait for `Application startup complete`, then:
+
+```
+python windows_tools\check_coherence.py --port 5002
+```
+
+Expect `COHERENT` (3/3 tiers).
+
+## Files
+
+- `qwen3.6-windows-server-portable-x64-ampere.zip` (and the unsuffixed
+  alias for legacy in-place updates from pre-v1.2.3 installs)
+- `qwen3.6-windows-server-portable-x64-blackwell.zip`
+- `SHA256SUMS.txt`

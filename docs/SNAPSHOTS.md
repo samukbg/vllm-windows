@@ -201,11 +201,12 @@ copying `start_speed.py` as the template.
   (`SupportsPP NotImplementedError`). The shipped `start_pp2_160k`
   disables MTP for that reason. If you set PP > 1 in the form, set
   MTP n to blank.
-- **PP=2 itself requires the `+devnen.2` wheel.** All releases from
-  v1.3.3 onward bundle it. If you're on an older zip, `pp2_160k` will
-  crash at boot with
-  `ZMQError: Protocol not supported (addr='ipc://...')` because pyzmq
-  has no `ipc://` transport on Windows. Run `update.bat`.
+- **PP=2 requires the `+devnen.3` Ampere wheel** (or any Blackwell
+  wheel). v1.3.3 added the ZMQ ipc -> tcp fallback (`+devnen.2`); v1.3.4
+  added the `os.sched_yield` Windows guard (`+devnen.3`). Older zips
+  crash at boot with `ZMQError: Protocol not supported` (pre-v1.3.3) or
+  `AttributeError: module 'os' has no attribute 'sched_yield'`
+  (v1.3.3 itself). Run `update.bat` to v1.3.4+.
 - **Draft-model spec-decode**: blocked entirely on Qwen3.6-27B
   (vocab=248320, no compatible drafter). Only MTP works.
 - **TP=2 on Windows**: technically loads, decodes at ~7 tok/s because

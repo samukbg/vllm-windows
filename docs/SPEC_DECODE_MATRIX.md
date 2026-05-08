@@ -2,7 +2,7 @@
 
 What works on the SystemPanic 0.19.0 wheel + the devnen patches
 (`qwen3.6-windows-server-portable-x64-ampere.zip`, current devnen tag
-`+devnen.2`).
+`+devnen.3`).
 
 The Blackwell zip ships vLLM 0.20.0+cu132.devnen.2. The matrix below is
 the 0.19 reference; 0.20 results are empirical and only partially
