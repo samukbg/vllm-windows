@@ -17,13 +17,15 @@ KV, FlashInfer, and a few Genesis patches are unavailable. What remains:
    fixed number.
 
    On RTX 5090 (Blackwell zip, vLLM 0.20.0+cu132.devnen.1) the picture
-   shifts:
+   shifts. The numbers below are from the AutoRound INT4 5090 snapshots
+   that were retired in v1.3.7 (NVFP4 is now the only 5090 path); they
+   are kept here as the reference MTP sweep on Blackwell:
 
    ```
-   500W power cap (v1.2.0–v1.2.2 baseline, three snapshots shipped):
+   500W power cap (v1.2.0-v1.2.2 baseline, three snapshots shipped):
    ctx 120k MTP n=6 (rtx5090_speed) -> short 130.9 / 24k decode ~89  tok/s   [retired in v1.2.3]
-   ctx 240k MTP n=6 (rtx5090)       -> short 124.9 / 24k decode  89.3 tok/s
-   ctx 280k MTP n=3 (rtx5090_max)   -> short 138.0 / 24k decode  81.0 tok/s
+   ctx 240k MTP n=6 (rtx5090)       -> short 124.9 / 24k decode  89.3 tok/s  [retired in v1.3.7]
+   ctx 280k MTP n=3 (rtx5090_max)   -> short 138.0 / 24k decode  81.0 tok/s  [retired in v1.3.7]
 
    575W power cap (v1.2.3 re-bench, --no-enable-prefix-caching, two snapshots):
    ctx 240k MTP n=6 (rtx5090)       -> short 158.1 / 24k decode 107.8 / 24k prefill 3,100-3,300
@@ -37,13 +39,21 @@ KV, FlashInfer, and a few Genesis patches are unavailable. What remains:
                                        decode after 2x 24k hits: stable
    ```
 
-   **Why two snapshots, not three.** v1.2.3 retired `rtx5090_speed`.
-   The 575W re-bench showed it tied `rtx5090` on short decode (158 vs
-   158) but was slower on long decode (103 vs 108) AND had a
-   reproducible long-prompt prefill regression (~343 tok/s vs ~3,200
-   for the other two). Same MTP n=6 + chunked-prefill flags — cause
-   not yet root-caused, but the practical conclusion was that it
-   offered no inference advantage and a real prefill loss.
+   The AutoRound 5090 path was dropped in v1.3.7 because long-prompt
+   prefill on consumer Blackwell is capped at ~170W (see
+   [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md)); the NVFP4 path
+   routes FFN GEMMs through FlashInfer's sm_120 native FP4 tensor cores
+   and reaches ~5,300 tok/s @ 47k prompt at full TDP.
+
+   **Snapshot history.** v1.2.3 retired `rtx5090_speed`. The 575W
+   re-bench showed it tied `rtx5090` on short decode (158 vs 158) but
+   was slower on long decode (103 vs 108) AND had a reproducible
+   long-prompt prefill regression (~343 tok/s vs ~3,200 for the other
+   two). Same MTP n=6 + chunked-prefill flags, cause not yet
+   root-caused, but the practical conclusion was that it offered no
+   inference advantage and a real prefill loss. v1.3.7 then retired
+   `rtx5090` and `rtx5090_max` themselves in favor of the NVFP4
+   snapshots.
 
    **Three Blackwell observations from the 575W re-bench:**
 
@@ -74,11 +84,12 @@ KV, FlashInfer, and a few Genesis patches are unavailable. What remains:
    both.
 
    **This does NOT hold on Blackwell.** The 5090 re-bench at 575W
-   showed `rtx5090` (240k, MTP n=6) hits 158.1 tok/s short decode
-   while `rtx5090_max` (280k, MTP n=3) hits 154.3 tok/s. The 4 % gap
-   is the MTP n drop, not the ctx ceiling. Bigger ctx is effectively
-   free on Blackwell at fixed MTP n. See [`BLACKWELL.md`](BLACKWELL.md)
-   for the full table.
+   showed the retired AutoRound `rtx5090` (240k, MTP n=6) hit 158.1
+   tok/s short decode while `rtx5090_max` (280k, MTP n=3) hit 154.3
+   tok/s. The 4 % gap is the MTP n drop, not the ctx ceiling. Bigger
+   ctx is effectively free on Blackwell at fixed MTP n. The shipping
+   5090 path is now NVFP4 (`rtx5090_nvfp4`, 200k); see
+   [`BLACKWELL.md`](BLACKWELL.md) for the current table.
 
 4. **Cudagraphs on.** `--enforce-eager` costs ~55 % on Linux; untested on
    Windows but almost certainly similar. Don't disable.

@@ -7,19 +7,17 @@ What works on the SystemPanic 0.19.0 wheel + the devnen patches
 The Blackwell zip ships vLLM 0.20.0+cu132.devnen.2. The matrix below is
 the 0.19 reference; 0.20 results are empirical and only partially
 validated. Confirmed on a single RTX 5090 (sm_120) on 2026-05-05:
-**TP=1 + MTP works** — Marlin sm_120 + AutoRound INT4 boots, serves,
-and decodes correctly. Verified single-card decode is **158.1 tok/s**
-on `rtx5090` (ctx 240k, MTP n=6, mem_util 0.95, 575W power cap, v1.2.3
-re-bench 2026-05-06). MTP-on-Blackwell sweep across n=3..n=8 is still
-TBD; the value chosen is the 3090-tuned long-prompt peak rather than
-re-swept on Blackwell.
+**TP=1 + MTP works** on both AutoRound INT4 (Marlin sm_120) and NVFP4
+(FlashInfer sm_120 native FP4 tensor cores).
 
 Since v1.3.0 the Blackwell default snapshot is `rtx5090_nvfp4`
-(`Peutlefaire/Qwen3.6-27B-NVFP4`, `--quantization=compressed-tensors`),
-not AutoRound INT4. NVFP4 has its own bundled MTP head (separate from
-the official Qwen MTP head Lorbus AutoRound preserves) and the same
-TP=1 + MTP row applies. AutoRound `rtx5090` / `rtx5090_max` remain as
-alternates. See [`BLACKWELL.md`](BLACKWELL.md) and
+(`Peutlefaire/Qwen3.6-27B-NVFP4`, `--quantization=compressed-tensors`).
+As of v1.3.7 this and `rtx5090_nvfp4_vision` are the only 5090 paths;
+the AutoRound INT4 5090 snapshots were removed because they cannot
+escape the 170W prefill ceiling on consumer Blackwell. NVFP4 has its
+own bundled MTP head (separate from the official Qwen MTP head Lorbus
+AutoRound preserves) and the same TP=1 + MTP row applies. See
+[`BLACKWELL.md`](BLACKWELL.md) and
 [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md).
 
 **PP=2 status (2026-05-07).** The Ampere `pp2_160k` snapshot was broken

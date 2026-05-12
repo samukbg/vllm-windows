@@ -78,7 +78,9 @@ profile.
 To reproduce the measurement:
 
 ```bash
-# Server up at port 5001 (start_5090.bat or .py)
+# Server up at port 5001 (AutoRound 5090 snapshot, removed in v1.3.7;
+# reproduce on the equivalent custom snapshot if you want to re-measure
+# the AutoRound ceiling)
 nvidia-smi.exe dmon -s pucvmet -i 0 -d 1 -c 25 > /tmp/dmon.log 2>&1 &
 # Fire a long prompt, 1-token output (prefill-heavy)
 curl -sS http://127.0.0.1:5001/v1/completions \
@@ -478,9 +480,10 @@ prefill faster — potentially raising overall throughput substantially.
 **Concrete test plan:**
 1. `huggingface-cli download Peutlefaire/Qwen3.6-27B-NVFP4
    --local-dir D:\models\Qwen3.6-27B-NVFP4`
-2. Clone `snapshots/start_5090.py` → `start_5090_nvfp4.py`. Swap
-   `--quantization auto-round` → `--quantization compressed-tensors`.
-   Point `MODEL_PATH` at the NVFP4 dir.
+2. (Historical, executed in v1.3.0: cloned the AutoRound 5090 snapshot
+   to `start_5090_nvfp4.py`, swapped `--quantization auto-round` for
+   `--quantization compressed-tensors`, pointed `MODEL_PATH` at the
+   NVFP4 dir.)
 3. Run `check_coherence.py --port 5001` first — must pass.
 4. Bench prefill under `nvidia-smi dmon -s pucvmet`. Compare to
    baseline 170W / ~1100 tok/s @ 60k.

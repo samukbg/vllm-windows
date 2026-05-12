@@ -288,108 +288,8 @@ windows:
       power_cap_w: 250
       notes: Original 250W baseline. ~50 tok/s on 24k prompt; 72.5 on short prompts.
 
-    - id: rtx5090
-      tagline: 5090 AutoRound INT4 (240k ctx) — alt to NVFP4 default
-      tier: active
-      status: stable
-      arch: blackwell
-      bat: '${SNAPSHOTS_DIR}\start_5090.bat'
-      py:  '${SNAPSHOTS_DIR}\start_5090.py'
-      gpu: GPU0
-      tp: 1
-      pp: 1
-      mem_util: 0.95
-      mtp_n: 6
-      ctx: 240000
-      port: 5001
-      decode_tps: 158.1
-      decode_tps_long: 107.8
-      prefill_tps_cold: 3200
-      power_cap_w: 575
-      requires_wheel: 'vllm-0.20.0+cu132.devnen'
-      vllm_version: 0.20.0+cu132.devnen.1
-      notes: |
-        Default RTX 5090 snapshot: fastest decode AND fastest prefill,
-        with a 240k context window. ctx 240k + MTP n=6 + mem_util 0.95.
-
-        Re-bench 2026-05-06 (v1.2.3, 575W power cap,
-        --no-enable-prefix-caching, median of 3 x 200-tok runs):
-          - short-prompt decode  : 158.1 tok/s
-          - 24k-prompt decode    : 107.8 tok/s
-          - 24k-prompt prefill   : 3,100-3,300 tok/s
-          - GPU KV cache size    : 79,968 tokens
-          - max concurrency @ ctx: 1.14x
-
-        Earlier 500W baseline (v1.2.0-v1.2.2): 124.9 / 89.3 / 2796.
-        575W lift adds ~27% short decode, ~21% long decode.
-
-        v1.2.5 re-bench (--enable-prefix-caching, vLLM PR #25752 / Mamba2 APC):
-          - short-prompt decode  : ~125 tok/s (steady, bench.py)
-          - 12k-prompt prefill   : ~2,150 tok/s (was 686, 3.1x)
-          - 16k-prompt prefill   : ~2,030 tok/s (was 559, 3.6x)
-          - 24k+ prefill         : 2-4k tok/s (was timeout)
-          - GPU KV cache size    : 94,656 tokens (+18% headroom)
-          - decode regression after 2x 24k hits: none (+2-4% drift)
-        Prefix caching is now the recommended path on the Blackwell wheel.
-
-        Pick this unless you specifically need >240k context.
-
-        Requires the Blackwell zip
-        (qwen3.6-windows-server-portable-x64-blackwell.zip).
-        Driver 596+ required.
-
-    - id: rtx5090_max
-      tagline: 5090 max-ctx (280k single card, MTP n=3) — AutoRound only
-      tier: active
-      status: stable
-      arch: blackwell
-      bat: '${SNAPSHOTS_DIR}\start_5090_max.bat'
-      py:  '${SNAPSHOTS_DIR}\start_5090_max.py'
-      gpu: GPU0
-      tp: 1
-      pp: 1
-      mem_util: 0.95
-      mtp_n: 3
-      ctx: 280000
-      port: 5001
-      decode_tps: 154.3
-      decode_tps_long: 90.2
-      prefill_tps_cold: 3200
-      power_cap_w: 575
-      requires_wheel: 'vllm-0.20.0+cu132.devnen'
-      vllm_version: 0.20.0+cu132.devnen.1
-      notes: |
-        Max-context single-card RTX 5090 snapshot.
-        ctx 280k + MTP n=3 + mem_util 0.95.
-
-        Re-bench 2026-05-06 (v1.2.3, 575W power cap,
-        --no-enable-prefix-caching, median of 3 x 200-tok runs):
-          - short-prompt decode  : 154.3 tok/s
-          - 24k-prompt decode    : 90.2 tok/s
-          - 24k-prompt prefill   : 3,100-3,300 tok/s
-          - GPU KV cache size    : 78,400 tokens
-          - max concurrency @ ctx: 1.05x (right at the edge)
-
-        v1.2.5 ships with --enable-prefix-caching (vLLM PR #25752 / Mamba2 APC
-        in the wheel auto-applies mamba_cache_mode='align' for Qwen3_5).
-        Same upstream fix as the rtx5090 snapshot; expect similar prefill
-        speedups at 12-32k tokens with no decode regression.
-
-        Earlier 500W baseline (v1.2.0-v1.2.2): 138.0 / 81.0 / 2818.
-
-        n=3 frees KV-pool budget that n=6 spends on draft sequences,
-        which is what gets us to 280k on a single 32 GB card with MTP
-        still on. Pick this when you need to feed an entire codebase.
-        Trade-off: ~16% slower long-prompt decode than rtx5090 (240k).
-
-        If 280k OOMs at boot, vLLM will print the safe ceiling — open
-        the snapshot editor (press `e`) and lower CTX to just under
-        the printed value.
-
-        Requires the Blackwell zip. Driver 596+ required.
-
     - id: rtx5090_nvfp4
-      tagline: 5090 NVFP4 default — full TDP prefill, ~5x AutoRound
+      tagline: 5090 NVFP4 default, full TDP prefill
       tier: active
       status: recommended
       arch: blackwell
@@ -408,17 +308,20 @@ windows:
       requires_wheel: 'vllm-0.20.0+cu132.devnen'
       vllm_version: 0.20.0+cu132.devnen.1
       notes: |
-        Default RTX 5090 snapshot. NVFP4 weights route FFN/QKV/proj GEMMs
+        Only RTX 5090 snapshot. NVFP4 weights route FFN/QKV/proj GEMMs
         through FlashInfer's sm_120 native FP4 tensor-core kernels
         (autotuned fp4_gemm), escaping the 170W prefill ceiling that
-        AutoRound INT4 hits on consumer Blackwell.
+        AutoRound INT4 hits on consumer Blackwell (sm_120 GDN). AutoRound
+        is still the path for Ampere/Ada (3090/4090); on the 5090 the
+        prefill cap makes it too slow to ship, so the launcher only
+        offers NVFP4 here. See docs/SM120_GDN_CEILING.md.
 
         Bench 2026-05-06 (cold unique-word prompts, no prefix cache hits):
           - 24k-prompt prefill : ~7,460 tok/s @ ~580W (vs ~1,100 AutoRound)
           - 47k-prompt prefill : ~5,300 tok/s @ ~584W (vs ~1,100 AutoRound)
           - decode (300 tok)   : ~92 tok/s (vs ~73 AutoRound)
           - peak SM%           : 100
-          - peak mem-BW%       : 35 (vs 0 on AutoRound — silicon now in use)
+          - peak mem-BW%       : 35 (vs 0 on AutoRound, silicon now in use)
 
         Validation 2026-05-06:
           - Coherence (3-tier short)              : PASS
@@ -439,9 +342,13 @@ windows:
         Default location: g:\_models\Qwen3.6-27B-NVFP4 — override with
         VLLM_NVFP4_MODEL_DIR.
 
-        First-boot warmup is slow (~9 min) because FlashInfer autotunes
-        fp4_gemm tactics for every unique GEMM shape in the model.
-        Subsequent boots cache the picks and run normal speed (~2 min).
+        First-ever boot is slow (~9 min) because FlashInfer JIT-compiles
+        the fp4_gemm kernels and profiles tactics for every unique GEMM
+        shape in the model. The kernel binaries are cached under
+        ~/.cache/flashinfer/; every subsequent boot still runs the
+        autotune progress bars but finishes in ~1-2 min because only
+        the tactic selection re-runs, the kernels are reused. The
+        re-tune is unavoidable, treat it as part of normal startup.
 
         Note: FlashInfer logs "Skipped 6 unsupported tactic(s) for
         fp4_gemm" per shape. These are the sm_120a-suffixed tactics that
@@ -553,7 +460,8 @@ windows:
     - { combo: 'PP=2 + ngram',         status: warn,    note: 'Boots, asserts on first request' }
     - { combo: 'PP=2 + no spec-decode', status: ok,     note: 'pp2_160k path' }
     - { combo: 'TP=2 (any)',           status: warn,    note: '~7.5 tok/s, unusable' }
-    - { combo: 'Blackwell sm_120 + Marlin AutoRound INT4', status: ok, note: 'Verified on RTX 5090 / vLLM 0.20.0+cu132.devnen.1' }
+    - { combo: 'Blackwell sm_120 + Marlin AutoRound INT4', status: warn, note: 'Boots and runs but FFN GEMMs hit the 170W sm_120 GDN prefill ceiling (~1.1k tok/s prefill). Use NVFP4 on 5090 instead. AutoRound stays the Ampere/Ada path.' }
+    - { combo: 'Blackwell sm_120 + NVFP4',                 status: ok,   note: 'Verified on RTX 5090 / vLLM 0.20.0+cu132.devnen.1, native fp4_gemm tensor cores' }
     - { combo: 'Blackwell + cu126 wheel',  status: blocked, note: 'cudaErrorNoKernelImageForDevice — use blackwell zip' }
     - { combo: 'Ampere/Ada + cu130 wheel', status: warn,    note: 'Boots if driver >=596 installed; not the recommended path' }
 

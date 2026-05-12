@@ -123,8 +123,13 @@ The default model on Ampere/Ada is
 On Blackwell (RTX 5090) the default since v1.3.0 is
 [`Peutlefaire/Qwen3.6-27B-NVFP4`](https://huggingface.co/Peutlefaire/Qwen3.6-27B-NVFP4),
 loaded by the `rtx5090_nvfp4` snapshot via the separate
-`VLLM_NVFP4_MODEL_DIR` env var; AutoRound INT4 stays available as
-`rtx5090` / `rtx5090_max`. See [`BLACKWELL.md`](BLACKWELL.md).
+`VLLM_NVFP4_MODEL_DIR` env var. The `rtx5090_nvfp4_vision` snapshot
+(experimental) reuses the same weights with the unquantized visual
+tower loaded for image and video input. As of v1.3.7 these are the
+only two 5090 snapshots; the AutoRound INT4 5090 snapshots were
+removed since they cannot escape the 170W prefill ceiling on consumer
+Blackwell. AutoRound INT4 remains the path for Ampere/Ada (3090,
+4090). See [`BLACKWELL.md`](BLACKWELL.md).
 Download with `huggingface-cli` or `snapshot_download`:
 
 ```powershell

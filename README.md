@@ -274,13 +274,15 @@ covered in [`docs/WINDOWS_VRAM_HEADLESS.md`](docs/WINDOWS_VRAM_HEADLESS.md).
 > / PyTorch cu130 with `sm_120` kernels. **v1.3.0 ships NVFP4 as the new
 > default** (`rtx5090_nvfp4`, port 5001) using the
 > [`Peutlefaire/Qwen3.6-27B-NVFP4`](https://huggingface.co/Peutlefaire/Qwen3.6-27B-NVFP4)
-> weights — these route FFN GEMMs through FlashInfer's sm_120 native
+> weights. These route FFN GEMMs through FlashInfer's sm_120 native
 > FP4 tensor cores, escaping the 170W prefill ceiling that AutoRound INT4
 > hits on consumer Blackwell. Measured on a single RTX 5090 at 575W:
 > **~5,300 tok/s prefill @ 47k prompt (5x AutoRound), ~92 tok/s decode**
-> at 200k context. AutoRound INT4 snapshots (`rtx5090`, `rtx5090_max`)
-> still ship as alternatives for the 240k/280k context profiles. NVIDIA
-> driver 596+ required. See [`docs/BLACKWELL.md`](docs/BLACKWELL.md) for
+> at 200k context. A second snapshot `rtx5090_nvfp4_vision` (180k ctx)
+> ships as experimental for image and video input. As of v1.3.7,
+> NVFP4 is the only supported 5090 path; the AutoRound INT4 5090
+> snapshots have been removed since they cannot escape the 170W
+> ceiling on consumer Blackwell. NVIDIA driver 596+ required. See [`docs/BLACKWELL.md`](docs/BLACKWELL.md) for
 > the full story and [`docs/SM120_GDN_CEILING.md`](docs/SM120_GDN_CEILING.md)
 > for the prefill-ceiling investigation.
 

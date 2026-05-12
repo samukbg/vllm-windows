@@ -24,8 +24,8 @@ not need that here. Skip straight to step 2.
    bash-flavoured tools assume a POSIX-ish shell.
 
 2. Start the server. Pick any snapshot in the launcher (the default
-   is `start_speed` on port 5001 for Ampere/Ada, `rtx5090` on port
-   5001 for Blackwell), or run headless:
+   is `start_speed` on port 5001 for Ampere/Ada, `rtx5090_nvfp4` on
+   port 5001 for Blackwell), or run headless:
 
    ```powershell
    start.bat --headless --snapshot start_speed
@@ -137,14 +137,13 @@ to the top automatically.
 
 | Use case | Snapshot | Port |
 |---|---|---|
-| Daily Claude Code on a 5090, default | `rtx5090_nvfp4` (NVFP4, 240k ctx) | 5001 |
-| AutoRound INT4 fallback | `rtx5090` (240k ctx) | 5001 |
-| Need >240k context for whole-codebase sessions | `rtx5090_max` (280k ctx) | 5001 |
+| Daily Claude Code on a 5090, default | `rtx5090_nvfp4` (NVFP4, 200k ctx) | 5001 |
+| Image and video input (experimental) | `rtx5090_nvfp4_vision` (NVFP4, 180k ctx) | 5004 |
 
-The NVFP4 snapshot is the default on 5090 since v1.3.0 because it
-routes FFN GEMMs through FlashInfer's sm_120 native FP4 tensor
-cores and bypasses the prefill power ceiling AutoRound hits on
-consumer Blackwell.
+NVFP4 is the only 5090 path since v1.3.7 because it routes FFN GEMMs
+through FlashInfer's sm_120 native FP4 tensor cores and bypasses the
+170W prefill ceiling AutoRound hits on consumer Blackwell. The
+AutoRound INT4 5090 snapshots were removed in v1.3.7.
 
 If you change the port, update `ANTHROPIC_BASE_URL` to match.
 

@@ -8,7 +8,7 @@ another tool fits your workflow better, use that, no offence taken.
 | Option | Backend | Decode tok/s (27B INT4) | MTP spec-decode | Tool calling | Multi-request | UI |
 |---|---|---|---|---|---|---|
 | **This project (Ampere/Ada zip on 3090)** | patched vLLM 0.19.0+devnen.1, native Windows | **64.5 to 72** (start_speed / start_72tps) | yes, MTP n=3 to n=6 | yes, OpenAI + Anthropic, baked in | yes | TUI |
-| **This project (Blackwell zip on 5090, 575W)** | patched vLLM 0.20.0+cu132.devnen.2, native Windows | **NVFP4 default since v1.3.0** (`rtx5090_nvfp4`, ~5,300 tok/s prefill @ 47k, ~92 tok/s decode @ 200k); AutoRound alternates: 158.1 (rtx5090, ctx 240k, MTP n=6) / 154.3 (rtx5090_max, ctx 280k, MTP n=3) | yes, MTP n=3 to n=6 | yes, OpenAI + Anthropic, baked in | yes | TUI |
+| **This project (Blackwell zip on 5090, 575W)** | patched vLLM 0.20.0+cu132.devnen.2, native Windows | **NVFP4 only since v1.3.7** (`rtx5090_nvfp4`, ~5,300 tok/s prefill @ 47k, ~92 tok/s decode @ 200k; `rtx5090_nvfp4_vision` adds image/video input on the same weights). The earlier AutoRound INT4 5090 snapshots hit 158.1 / 154.3 tok/s short decode but were capped at ~170W on prefill on consumer Blackwell, so they were removed in favor of NVFP4. | yes, MTP n=3 to n=6 | yes, OpenAI + Anthropic, baked in | yes | TUI |
 | Ollama | llama.cpp | 30 to 40 (Q4) | no, GGUF strips the head | beta | one at a time | CLI + GUI clients |
 | LM Studio | llama.cpp | 30 to 40 (Q4) | no | beta | one at a time | full GUI |
 | llama.cpp direct | llama.cpp | 30 to 40 (Q4) | no native MTP, only draft-model | partial | one at a time | CLI |

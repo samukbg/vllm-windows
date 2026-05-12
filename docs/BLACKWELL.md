@@ -12,16 +12,19 @@ Single landing page for everything Blackwell. If you have an RTX 5060,
 2. Make sure your NVIDIA driver is **596 or newer** (CUDA 13 is
    required). `nvidia-smi` shows the driver version.
 3. Extract anywhere, double-click `start.bat`, pick a 5090 snapshot:
-   - **`rtx5090_nvfp4`** (200k ctx, **NVFP4 weights, default since v1.3.0** —
+   - **`rtx5090_nvfp4`** (200k ctx, **NVFP4 weights, default since v1.3.0**,
      escapes the 170W prefill ceiling, ~5x faster prefill than AutoRound).
      Requires the NVFP4 weights at `D:\models\Qwen3.6-27B-NVFP4` (or set
      `VLLM_NVFP4_MODEL_DIR`); the launcher does not auto-download these yet.
    - **`rtx5090_nvfp4_vision`** (180k ctx, same NVFP4 weights, vision/video
-     input enabled). The Peutlefaire NVFP4 quant preserves the unquantized
-     visual tower, so vision is a flag flip on the same weights. Trades
-     ~20k ctx vs the text twin to cover the vision encoder + per-image KV.
-   - `rtx5090` (240k ctx, AutoRound INT4 — alternative when you need >200k ctx).
-   - `rtx5090_max` (280k ctx, AutoRound INT4 — for the largest contexts).
+     input enabled, experimental). The Peutlefaire NVFP4 quant preserves the
+     unquantized visual tower, so vision is a flag flip on the same weights.
+     Trades ~20k ctx vs the text twin to cover the vision encoder + per-image KV.
+
+   As of v1.3.7, NVFP4 is the only supported 5090 path. The AutoRound INT4
+   5090 snapshots (`rtx5090`, `rtx5090_max`) were removed because they
+   cannot escape the 170W prefill ceiling on consumer Blackwell (see
+   [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md) for the investigation).
 
 That's it. The launcher autodetects the bundled wheel as a CUDA 13
 build and installs the right torch index (cu130) plus a runtime shim
@@ -56,7 +59,7 @@ End-to-end on a single RTX 5090 (driver 596.36, sm_120, 32 GB):
 | Marlin sm_120 + AutoRound INT4 | works; Marlin selects `MarlinLinearKernel` for `GPTQMarlinLinearMethod` on first load. The `scalar_types.int4` Marlin sm_120 bug from older vLLM versions is **fixed** in 0.20.0. |
 | FlashInfer `fp4_gemm` + NVFP4 (compressed-tensors) | works; autotuner selects sm_120 native FP4 tactics. First boot is slow (~9 min, autotuning per GEMM shape); subsequent boots cache picks. |
 | TP=1 + MTP n=6 | works on both AutoRound and NVFP4 |
-| AutoRound decode tok/s | **158.1 tok/s** on `rtx5090` (ctx 240k, MTP n=6, mem_util 0.95, 200-token completion, median of 3 runs at 575W). Long-prompt 24k decode 107.8 tok/s, 24k prefill 3,100–3,300 tok/s. AutoRound prefill on long unique-word prompts is power-capped at ~170W on consumer Blackwell (see [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md)). |
+| AutoRound decode tok/s (historical, no longer shipped) | 158.1 tok/s on the removed `rtx5090` AutoRound snapshot (ctx 240k, MTP n=6, mem_util 0.95, 200-token completion, median of 3 runs at 575W). Long-prompt 24k decode 107.8 tok/s, 24k prefill 3,100-3,300 tok/s. AutoRound prefill on long unique-word prompts was power-capped at ~170W on consumer Blackwell, which is why these snapshots are no longer offered (see [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md)). |
 | **NVFP4 prefill tok/s** | **~7,460 tok/s @ 24k** and **~5,300 tok/s @ 47k** on `rtx5090_nvfp4` (full TDP, ~580W, peak mem-BW 35%). 5–7x AutoRound. Sidesteps the 170W ceiling by routing FFN GEMMs through FlashInfer's sm_120 native FP4 tensor cores. |
 | **NVFP4 decode tok/s** | ~92 tok/s (300-token completion, MTP n=6). +25% vs AutoRound on the same hardware. |
 | **NVFP4 long-ctx coherence + needle retrieval** | PASS at 50k / 100k / 177k tokens (both needles retrieved at every depth). |
@@ -93,49 +96,45 @@ Blackwell zip on it, run the `pp2_160k` snapshot, and post numbers.
 
 Since v1.2.4 the launcher detects the host GPU at startup, prints a
 banner with the architecture, and groups the snapshot cards by arch.
-On a Blackwell box the `rtx5090` and `rtx5090_max` cards float to the
-top under a blue `Recommended for your Blackwell GPU` header, and the
-3090-era cards drop below under a neutral header. Each card gets a
-`[Blackwell]` or `[Ampere/Ada]` chip and a colored top border so you
-can tell at a glance which build a snapshot targets.
+On a Blackwell box the `rtx5090_nvfp4` and `rtx5090_nvfp4_vision`
+cards float to the top under a blue `Recommended for your Blackwell
+GPU` header, and the 3090-era cards drop below under a neutral header.
+Each card gets a `[Blackwell]` or `[Ampere/Ada]` chip and a colored top
+border so you can tell at a glance which build a snapshot targets.
 
 `configs.yaml` carries the truth via an optional `arch:` key per
-entry; the two `rtx5090*` snapshots are tagged explicitly. Existing
-user snapshots keep working with no edits, the heuristic falls back
-to `ampere` for anything that doesn't start with `rtx5090`.
+entry; the `rtx5090*` snapshots are tagged explicitly. Existing user
+snapshots keep working with no edits, the heuristic falls back to
+`ampere` for anything that doesn't start with `rtx5090`.
 
 ## The 5090 snapshots
 
-The Blackwell zip ships four single-card 5090 snapshots — all GPU0,
-attention backend
-TRITON_ATTN, KV dtype fp8_e4m3, with a randomised
-`--data-parallel-rpc-port` (see "RPC port leak" below) and **no**
-`VLLM_ATTENTION_BACKEND` env var (deprecated in 0.20.0; the CLI flag
-still works). The three text-only snapshots all listen on port 5001
-(mutually exclusive — pick one); the vision snapshot listens on 5004
-so you can run it alongside a text snapshot if you want both endpoints
-live at once:
+As of v1.3.7 the Blackwell zip ships two single-card 5090 snapshots,
+both GPU0, attention backend TRITON_ATTN, KV dtype fp8_e4m3, with a
+randomised `--data-parallel-rpc-port` (see "RPC port leak" below) and
+**no** `VLLM_ATTENTION_BACKEND` env var (deprecated in 0.20.0; the CLI
+flag still works). The text snapshot listens on port 5001; the vision
+snapshot listens on 5004 so you can run it alongside the text snapshot
+if you want both endpoints live at once:
 
 **`rtx5090_nvfp4` is the new default since v1.3.0.** It uses NVFP4
 weights ([`Peutlefaire/Qwen3.6-27B-NVFP4`](https://huggingface.co/Peutlefaire/Qwen3.6-27B-NVFP4),
 ~20.6 GB) and routes FFN/QKV/proj GEMMs through FlashInfer's sm_120
 native FP4 tensor cores. This bypasses the 170W prefill ceiling that
-AutoRound INT4 hits on consumer Blackwell — the GDN linear-attention
+AutoRound INT4 hits on consumer Blackwell. The GDN linear-attention
 layers are still slow for their 10/40 layer share, but FFN dominates
 prefill FLOPs and is now firing at full 575W. Set `VLLM_NVFP4_MODEL_DIR`
 to point at the weights directory; default location is
 `D:\models\Qwen3.6-27B-NVFP4`. **First boot is slow** (~9 min while
-FlashInfer autotunes `fp4_gemm` per GEMM shape); subsequent boots cache
-the picks and start in ~2 min. See
+FlashInfer JIT-compiles `fp4_gemm` kernels and autotunes tactics per
+GEMM shape). Every subsequent boot still re-runs the `Tuning fp4_gemm`
+progress bars, but the compiled kernel binaries are cached under
+`~/.cache/flashinfer/` so only tactic selection re-runs and the boot
+finishes in ~1-2 min. The progress bars on every boot are expected
+and unavoidable. See
 [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md) for the full
 prefill-ceiling investigation, validation matrix, and the eval-slice
 caveat on quality vs AutoRound.
-
-**`rtx5090` and `rtx5090_max` remain available** as the AutoRound INT4
-alternates. Use them when you need >200k context (the NVFP4 snapshot
-ships at 200k due to NVFP4 KV-cache footprint), or when you want to
-use the same Lorbus weights you already have on disk for the Ampere/Ada
-zip.
 
 **`rtx5090_nvfp4_vision` enables image and video input** on the same
 NVFP4 weights. The Peutlefaire quant deliberately keeps the visual
@@ -149,9 +148,11 @@ is dropped 200k -> 180k to absorb that. Measured at boot:
 tokens`, `Maximum concurrency for 180,000 tokens per request: 1.22x`.
 Listens on port 5004 (the text NVFP4 default is 5001). Cold first boot
 takes longer than the text twin (FlashInfer autotunes the vision-tower
-GEMM shapes too — expect 12–15 min vs ~9 min); subsequent boots cache
-the picks. `--limit-mm-per-prompt` defaults to `image=4, video=1`; lower
-that if you OOM at boot.
+GEMM shapes too; expect 12-15 min vs ~9 min). Every subsequent boot
+still shows the `Tuning fp4_gemm` progress bars but finishes in ~1-2
+min because the compiled kernel binaries are cached.
+`--limit-mm-per-prompt` defaults to `image=4, video=1`; lower that if
+you OOM at boot.
 
 **Bench 2026-05-06 (v1.2.3, 575W power cap, `--no-enable-prefix-caching` shipped from v1.2.2, median of 3 × 200-token short runs).** v1.2.5 re-enables prefix caching (vLLM PR #25752 / Mamba2 APC in the wheel auto-applies `mamba_cache_mode='align'`); see the v1.2.5 notes below the table.
 
@@ -159,17 +160,24 @@ that if you OOM at boot.
 |--------------------|------|-------|----------|---------------------|-------------|-------------|-------------|
 | `rtx5090_nvfp4`    | 200k | 6     | 0.95     | **~92 tok/s**       | **~7,460 tok/s @ 580W** | **~5,300 tok/s @ 584W** | **Default since v1.3.0.** Full TDP prefill via FlashInfer sm_120 native FP4. ~5x AutoRound prefill, ~25% faster decode. Quality tied with AutoRound on a small coding slice (see eval caveat). |
 | `rtx5090_nvfp4_vision` | 180k | 6 | 0.95 | not yet benched | not yet benched | not yet benched | Same NVFP4 weights with the visual tower loaded. Image + video input via `--limit-mm-per-prompt={"image":4,"video":1}`. Listens on port 5004. KV pool at 180k: 66,912 tokens / max-concurrency 1.22x. Status: experimental until a multimodal smoke test is wired into the coherence harness. |
-| `rtx5090`          | 240k | 6     | 0.95     | **158.1 tok/s** (24k decode 107.8) | 3,100–3,300 tok/s | n/a (170W cap) | AutoRound alternative. 240k context. Higher short-decode tok/s than NVFP4 due to MTP acceptance pattern, but prefill capped at ~170W on long unique-word prompts. |
-| `rtx5090_max`      | 280k | 3     | 0.95     | 154.3 tok/s (24k decode 90.2)      | 3,100–3,300 tok/s | n/a (170W cap) | AutoRound alternative for >240k context. 4% slower short decode than `rtx5090`, 16% slower long decode. |
+
+Historical (removed in v1.3.7): the AutoRound INT4 snapshots `rtx5090`
+(240k, MTP n=6) and `rtx5090_max` (280k, MTP n=3) hit 158.1 and 154.3
+tok/s short decode respectively, with 3,100-3,300 tok/s prefill capped
+at the ~170W consumer-Blackwell ceiling on long unique-word prompts.
+NVFP4 beats both on prefill by 5-7x at full TDP, so the AutoRound
+snapshots are no longer shipped for 5090.
 
 (Earlier 500W baseline was 124.9 / 138.0 short decode. The 500W → 575W cap lift adds ~20–30% short decode and ~10–20% long-prompt decode.)
 
-**v1.2.5 update — prefix caching back on, large prefill speedup.** vLLM PR
+**v1.2.5 update, prefix caching back on, large prefill speedup.** vLLM PR
 [#25752](https://github.com/vllm-project/vllm/pull/25752) (Mamba2 Automatic
 Prefix Caching) shipped upstream and is in the wheel; with prefix caching
 enabled, vLLM auto-applies `mamba_cache_mode='align'` for Qwen3_5 so the
-v1.2.2-era #17140 stepwise decode regression no longer reproduces. Re-bench
-on `rtx5090` (ctx 240k, MTP n=6, batch 4128, 575 W):
+v1.2.2-era #17140 stepwise decode regression no longer reproduces. The
+re-bench below was taken on the (now-removed) AutoRound `rtx5090`
+snapshot at ctx 240k, MTP n=6, batch 4128, 575W and is kept here as
+historical reference for AutoRound prefix-caching behavior:
 
 | Prompt size  | OFF (v1.2.2-v1.2.4) | ON (v1.2.5) | Speedup    |
 |--------------|---------------------|-------------|------------|
@@ -190,13 +198,17 @@ re-measured under v1.2.5 conditions in a follow-up.
 
 Both beat every 3090 snapshot on context size at the same MTP n.
 
-**Why only two profiles?** v1.2.0–v1.2.2 also shipped `rtx5090_speed`
+**Profile history.** v1.2.0-v1.2.2 also shipped `rtx5090_speed`
 (120k, MTP n=6) as the headline "speed" config. The 575W re-bench
-showed it ties `rtx5090` on short decode (158 vs 158), is slower on
-long decode (103 vs 108), and has a reproducible long-prompt prefill
-regression (~343 tok/s vs ~3,200 for the other two). Same MTP +
-chunked-prefill flags — cause not root-caused. Removed in v1.2.3
-because it offers no inference advantage.
+showed it tied the AutoRound `rtx5090` snapshot on short decode (158
+vs 158), was slower on long decode (103 vs 108), and had a
+reproducible long-prompt prefill regression (~343 tok/s vs ~3,200 for
+the other two). Same MTP + chunked-prefill flags, cause not
+root-caused. Removed in v1.2.3 because it offered no inference
+advantage. The AutoRound `rtx5090` and `rtx5090_max` snapshots
+themselves were then removed in v1.3.7 once NVFP4 was the validated
+default, since neither AutoRound snapshot could escape the 170W
+prefill ceiling on consumer Blackwell.
 
 If you want a different combo, `e` on the dashboard opens the
 snapshot editor. Duplicate either snapshot, edit, save. The launcher
@@ -376,7 +388,7 @@ emits a one-line `Unknown vLLM environment variable:
 VLLM_ATTENTION_BACKEND` warning. The CLI flag
 (`--attention-backend=TRITON_ATTN`) is the right answer either way.
 
-The three shipped `rtx5090*` snapshots do not set the env var. The
+The shipped `rtx5090_nvfp4*` snapshots do not set the env var. The
 other snapshots (carried over from the 0.19 path) still set it; on
 the Blackwell zip those produce the warning above and otherwise
 behave identically. To silence the warning, drop the env-var line
@@ -407,7 +419,7 @@ shipped tool-calling fixes.
 If you bench the Blackwell zip, please post:
 
 - GPU model + driver version (`nvidia-smi --query-gpu=name,driver_version --format=csv`)
-- Snapshot id (`rtx5090`, `rtx5090_max`, or your custom one)
+- Snapshot id (`rtx5090_nvfp4`, `rtx5090_nvfp4_vision`, or your custom one)
 - Output of `windows_tools\check_coherence.py --port 5001` (decode
   tok/s without coherence is meaningless)
 - Output of `windows_tools\bench_summarize.py` (a single TSV row

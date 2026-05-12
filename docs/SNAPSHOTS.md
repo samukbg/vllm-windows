@@ -178,7 +178,7 @@ them lightly. Full reasoning is in
 [`docs/HALLUCINATED_FLAGS.md`](HALLUCINATED_FLAGS.md) and
 [`docs/COHERENCE.md`](COHERENCE.md):
 
-- `--quantization=auto-round` for Lorbus AutoRound INT4 weights (every Ampere/Ada snapshot, plus `rtx5090` / `rtx5090_max`); `--quantization=compressed-tensors` for the NVFP4 snapshots `rtx5090_nvfp4` (text default since v1.3.0) and `rtx5090_nvfp4_vision` (image/video input on the same NVFP4 weights — the Peutlefaire quant preserves the unquantized visual tower, so vision is a CLI flag flip rather than a different model). See [`BLACKWELL.md`](BLACKWELL.md) and [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md).
+- `--quantization=auto-round` for Lorbus AutoRound INT4 weights (every Ampere/Ada snapshot); `--quantization=compressed-tensors` for the NVFP4 snapshots `rtx5090_nvfp4` (text default since v1.3.0, sole 5090 path since v1.3.7) and `rtx5090_nvfp4_vision` (image/video input on the same NVFP4 weights, the Peutlefaire quant preserves the unquantized visual tower, so vision is a CLI flag flip rather than a different model). See [`BLACKWELL.md`](BLACKWELL.md) and [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md).
 - `--attention-backend=TRITON_ATTN` plus
   `VLLM_ATTENTION_BACKEND=TRITON_ATTN`. FLASHINFER trips MAX_PATH on
   Windows; nothing else is supported by the Qwen3-Next hybrid arch on

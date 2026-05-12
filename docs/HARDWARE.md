@@ -12,7 +12,7 @@ Skim this first, prose follows.
 | RTX 3080, A40, A6000, A5000, A100 | Ampere / sm_86 / sm_80 | default zip | 🟡 should work, untested | Same code path as 3090. Please post numbers. |
 | RTX 4090, 4080, 4070 Ti Super | Ada / sm_89 | default zip | 🟡 should work, untested | Same code path as 3090; expect higher numbers. |
 | RTX 4060 Ti 16 GB, 4070 12 GB | Ada / sm_89 | default zip | 🟡 tight on VRAM | 27B INT4 weights are 16.96 GiB; needs boot-quiet + small ctx, or step down to Qwen3-14B. |
-| RTX 5090 | Blackwell / sm_120 | **`-blackwell` zip** | ✅ tested | **`rtx5090_nvfp4` (NVFP4) is the default since v1.3.0**: ~5,300 tok/s prefill at 47 k prompt, ~92 tok/s decode at 200 k ctx (escapes the 170 W AutoRound prefill ceiling on consumer Blackwell). AutoRound INT4 alternates: 158.1 tok/s on `rtx5090` (240 k, MTP n=6, 575 W), 154.3 on `rtx5090_max` (280 k, n=3). See [`BLACKWELL.md`](BLACKWELL.md) and [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md). |
+| RTX 5090 | Blackwell / sm_120 | **`-blackwell` zip** | ✅ tested | **`rtx5090_nvfp4` (NVFP4) is the default since v1.3.0**: ~5,300 tok/s prefill at 47 k prompt, ~92 tok/s decode at 200 k ctx (escapes the 170 W AutoRound prefill ceiling on consumer Blackwell). `rtx5090_nvfp4_vision` adds image and video input (180 k ctx, experimental). NVFP4 is the only 5090 path since v1.3.7; the AutoRound INT4 5090 snapshots were removed since they cannot escape the 170W ceiling. See [`BLACKWELL.md`](BLACKWELL.md) and [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md). |
 | RTX 5070, 5080, 5060 | Blackwell / sm_120 | **`-blackwell` zip** | 🟡 should work, untested | Same wheel, same snapshots. 5060 (8 GB) won't fit 27B; use a smaller model. |
 | GTX 1080 Ti, 1080, GT 1030 | Pascal / sm_61 | none | ❌ won't work | No BF16 in hardware; Marlin INT4 needs sm_80+. Use llama.cpp. |
 | RTX 2080 Ti, 2070 Super | Turing / sm_75 | none | ❌ won't work | Marlin INT4 needs sm_80+. Use llama.cpp. |
@@ -42,7 +42,7 @@ Two reference rigs.
 - Windows 10 Enterprise 22H2
 - 1× NVIDIA RTX 5090, 32 GB, sm_120, driver 596.36
 - Power cap 575 W (500 W also benchmarked, see TUNING.md / BLACKWELL.md)
-- Headline: 158.1 tok/s on `rtx5090`, 240 k ctx, MTP n=6
+- Headline: ~92 tok/s decode at 200k ctx, ~5,300 tok/s prefill @ 47k prompt on `rtx5090_nvfp4` (NVFP4, MTP n=6, 575 W)
 - The 0.20.0 wheel ships from this box; the 0.19.0 / Ampere zip is
   still the recommended path for non-Blackwell users.
 
@@ -71,18 +71,19 @@ to install from based on the bundled wheel's filename
 Verified end-to-end on a single RTX 5090 (driver 596.36, sm_120) on
 2026-05-05:
 
-- Lorbus AutoRound INT4 27B loads in ~17 s and serves on
-  `/v1/chat/completions`, `/v1/messages`, `/v1/responses`.
-- Decode at **158.1 tok/s** (median of 3 × 200-token runs) on
-  `rtx5090` (ctx 240k, MTP n=6, mem_util 0.95) at 575W. Long-prompt
-  24k-token decode 107.8 tok/s, 24k-prompt prefill 3,100–3,300 tok/s.
-  (Earlier 500W baseline was 124.9 / 89.3 / 2796.)
-- `rtx5090_max` (ctx 280k, MTP n=3) at 154.3 tok/s short decode and
-  90.2 tok/s long decode — 4% slower short, 16% slower long, but
-  fits a 280k window on a single 32 GB card with MTP still on.
-- **Marlin sm_120 + AutoRound INT4 works.** The
-  `scalar_types.int4` bug previously reported on older vLLM versions is
-  resolved in 0.20.0; no AWQ repackaging needed. Marlin selects
+- Peutlefaire NVFP4 27B (~20 GB) loads in ~25 s and serves on
+  `/v1/chat/completions`, `/v1/messages`, `/v1/responses` via
+  `rtx5090_nvfp4`. The vision twin `rtx5090_nvfp4_vision` reuses the
+  same weights with the unquantized visual tower loaded.
+- Decode at **~92 tok/s** at 200k context (MTP n=6, mem_util 0.95,
+  575W), prefill **~5,300 tok/s @ 47k prompt** and **~7,460 tok/s @
+  24k prompt** via FlashInfer's sm_120 native FP4 tensor cores. This
+  bypasses the 170W prefill ceiling that AutoRound INT4 hits on
+  consumer Blackwell, which is why the AutoRound INT4 5090 snapshots
+  were removed in v1.3.7.
+- **Marlin sm_120 + AutoRound INT4 works** on Ampere/Ada and is the
+  default path there. The `scalar_types.int4` bug previously reported
+  on older vLLM versions is resolved in 0.20.0. Marlin selects
   `MarlinLinearKernel` for `GPTQMarlinLinearMethod` on first load.
 - CUDA 13 toolkit is **not** required on the user's machine — the
   launcher copies `cudart64_13.dll`, `cublas64_13.dll`, etc. from
@@ -91,24 +92,27 @@ Verified end-to-end on a single RTX 5090 (driver 596.36, sm_120) on
   import-time `CDLL` succeeds. Driver 596+ remains the only host
   requirement.
 
-The Blackwell zip ships three single-card 5090 snapshots. **`rtx5090_nvfp4`
-(NVFP4) is the default since v1.3.0**; the two AutoRound INT4 snapshots
-remain as alternates for users who prefer the INT4 path.
+The Blackwell zip ships two single-card 5090 snapshots since v1.3.7.
+**`rtx5090_nvfp4`** (NVFP4, text, default since v1.3.0) and
+**`rtx5090_nvfp4_vision`** (NVFP4, image and video input,
+experimental).
 
-| Snapshot         | Quant | ctx  | MTP n | mem_util | Short decode | 24k decode | 24k prefill |
-|------------------|-------|------|-------|----------|--------------|------------|-------------|
-| `rtx5090_nvfp4`  | NVFP4 (`Peutlefaire/Qwen3.6-27B-NVFP4`, `--quantization=compressed-tensors`) | 240k | 6 | 0.95 | see [`BLACKWELL.md`](BLACKWELL.md) | ~92 tok/s @ 200k | ~5,300 tok/s @ 47k |
-| `rtx5090`        | AutoRound INT4 | 240k | 6     | 0.95     | **158.1 tok/s** | **107.8 tok/s** | 3,100–3,300 tok/s |
-| `rtx5090_max`    | AutoRound INT4 | 280k | 3     | 0.95     | 154.3 tok/s     | 90.2 tok/s      | 3,100–3,300 tok/s |
+| Snapshot                | Quant | ctx  | MTP n | mem_util | Short decode | 24k decode | 24k prefill |
+|-------------------------|-------|------|-------|----------|--------------|------------|-------------|
+| `rtx5090_nvfp4`         | NVFP4 (`Peutlefaire/Qwen3.6-27B-NVFP4`, `--quantization=compressed-tensors`) | 200k | 6 | 0.95 | see [`BLACKWELL.md`](BLACKWELL.md) | ~92 tok/s @ 200k | ~5,300 tok/s @ 47k |
+| `rtx5090_nvfp4_vision`  | NVFP4 (same weights, visual tower loaded) | 180k | 6 | 0.95 | not yet benched | not yet benched | not yet benched |
 
-(575W power cap, v1.2.3, `--no-enable-prefix-caching` — v1.2.5 re-enables prefix caching now that vLLM PR #25752 ships in the wheel; 12-16k prefill jumps ~3-4x, 24k+ prompts no longer time out. See [`BLACKWELL.md`](BLACKWELL.md). Earlier 500W
-baseline was 124.9 / 138.0 short decode. The third "speed" snapshot
-that shipped in v1.2.0–v1.2.2 was retired in v1.2.3 — its 575W
-re-bench showed no inference advantage over `rtx5090` and a
-reproducible long-prompt prefill regression. See
-[BLACKWELL.md](BLACKWELL.md).)
+(575W power cap. Historical AutoRound INT4 5090 snapshots
+were removed in v1.3.7. Their 575W numbers, kept here for reference:
+`rtx5090` (240k, MTP n=6) hit 158.1 tok/s short decode, 107.8 tok/s
+24k decode, 3,100-3,300 tok/s 24k prefill capped at 170W on long
+unique-word prompts; `rtx5090_max` (280k, MTP n=3) hit 154.3 / 90.2
+under the same cap. NVFP4 beats both on prefill by 5-7x at full TDP,
+which is why the AutoRound 5090 path was dropped. See
+[`BLACKWELL.md`](BLACKWELL.md).)
 
-Both beat every 3090 snapshot on context size at the same MTP n.
+The NVFP4 snapshots beat every 3090 snapshot on context size at the
+same MTP n.
 vLLM 0.20.0 hardcodes `data_parallel_rpc_port=29550` which leaks
 across orphaned engine cores; snapshots in this project pass a
 randomised `--data-parallel-rpc-port` to dodge the leak.
@@ -270,16 +274,20 @@ Default Ampere/Ada snapshots assume 350 W. Set with `nvidia-smi -pl 350`.
 the 12V rails alone before CPU and the rest. The launch rig used a 1300 W
 Gold PSU.
 
-**5090 (Blackwell):** 500 W → 575 W on `rtx5090` (240k, MTP n=6):
+**5090 (Blackwell):** 500 W → 575 W (numbers below are from the
+historical AutoRound `rtx5090` snapshot at 240k / MTP n=6, kept as a
+power-scaling reference; NVFP4 prefill at full TDP is ~5,300 tok/s @
+47k, which AutoRound could not match at any cap on consumer
+Blackwell):
 - Short decode: 124.9 → 158.1 tok/s (+27 %)
 - 24k-token decode: 89.3 → 107.8 tok/s (+21 %)
-- 24k-token prefill: ~2,800 → 3,100–3,300 tok/s (+10–18 %)
+- 24k-token prefill: ~2,800 → 3,100-3,300 tok/s (+10-18 %)
 
 Unlike the 3090, **decode itself moves with power on Blackwell**. The
 5090 has compute headroom even at batch=1 / max-num-seqs=1, so the
 bandwidth-bound assumption no longer holds. If your PSU and cooling
-allow it, the 575 W cap pays out. The default `rtx5090*` snapshots
-assume 575 W. Drop to 500 W if your PSU is tight.
+allow it, the 575 W cap pays out. The shipped `rtx5090_nvfp4*`
+snapshots assume 575 W. Drop to 500 W if your PSU is tight.
 
 ## Tensor vs pipeline parallelism
 

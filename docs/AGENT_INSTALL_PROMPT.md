@@ -66,12 +66,15 @@ recent CUDA driver. Won't work on Pascal/Turing/Intel Arc/AMD.
      headless 3090/4090/A6000, `start_gpu0_50k` if the card also drives
      a display.
    - **Blackwell zip:** `rtx5090_nvfp4` is the default since v1.3.0
-     (NVFP4, 240k ctx, escapes the AutoRound prefill ceiling on
-     consumer Blackwell — see `docs/SM120_GDN_CEILING.md`). AutoRound
-     INT4 alternates: `rtx5090` (240k ctx) and `rtx5090_max` (280k
-     ctx). All three work on any sm_120 card; on a 5060 / 5070 / 5080
-     the smaller VRAM may force you to drop context, but the snapshot
-     ids are the same.
+     (NVFP4, 200k ctx, escapes the AutoRound prefill ceiling on
+     consumer Blackwell; see `docs/SM120_GDN_CEILING.md`). The second
+     snapshot `rtx5090_nvfp4_vision` (180k ctx, port 5004) is
+     experimental and adds image and video input on the same NVFP4
+     weights. As of v1.3.7 these are the only 5090 paths; the older
+     AutoRound INT4 5090 snapshots were removed since they cannot
+     escape the 170W prefill ceiling. Both work on any sm_120 card;
+     on a 5060 / 5070 / 5080 the smaller VRAM may force you to drop
+     context, but the snapshot ids are the same.
 
 5. Launch headlessly. The launcher is a Textual TUI by default but has
    full CLI flags. From bash, you must invoke the .bat through
@@ -156,8 +159,8 @@ recent CUDA driver. Won't work on Pascal/Turing/Intel Arc/AMD.
   release. Re-download is faster and produces a known state.
 - For single-GPU hosts on the default zip where GPU 0 has the desktop
   attached, swap `--snapshot start_72tps` for `--snapshot start_gpu0_50k`.
-- On the Blackwell zip `rtx5090_nvfp4`, `rtx5090`, and `rtx5090_max`
-  all use `mem_util=0.95` and tolerate a typical desktop tax on a
+- On the Blackwell zip both `rtx5090_nvfp4` and `rtx5090_nvfp4_vision`
+  use `mem_util=0.95` and tolerate a typical desktop tax on a
   32 GB 5090. If a smaller Blackwell card OOMs at boot, lower
   `--max-model-len` in the snapshot before retrying (vLLM prints the
   safe ceiling in the error).
