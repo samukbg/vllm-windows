@@ -137,6 +137,19 @@ def main() -> int:
     p.add_argument("--yes", "-y", action="store_true", help="Skip the confirmation prompt.")
     args = p.parse_args()
 
+    print("=" * 72)
+    print("wipe_caches.py - recovery tool, NOT routine pre-launch cleanup")
+    print("=" * 72)
+    print("Only run this if you are seeing the NVFP4 prefill regression:")
+    print("  ~750 tok/s on a 47k prompt, power 200-270W, mem-BW% near 0.")
+    print("See docs/TROUBLESHOOTING.md row 52 for the full fingerprint.")
+    print()
+    print("Cost: the next boot does a full FlashInfer fp4_gemm JIT rebuild")
+    print("(~11-25 min). On a normal boot the kernels are cached and boot")
+    print("finishes in 1-2 min. Do not run this before every launch.")
+    print("=" * 72)
+    print()
+
     targets = cache_targets()
     report(targets)
 
