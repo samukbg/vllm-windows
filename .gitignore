@@ -44,7 +44,7 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Local-only notes (drafts, reddit posts, scratchpads — never pushed)
+# Local-only notes (drafts, scratchpads, never pushed).
 # Covers per-agent context files dropped by various coding tools.
 _local/
 AGENT_NOTES.md
