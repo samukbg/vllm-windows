@@ -1,0 +1,66 @@
+[
+  {
+    "target_tokens": 47000,
+    "prompt_tokens": 46855,
+    "completion_tokens": 200,
+    "wall_s": 13.5,
+    "finish_reason": "length",
+    "needles": {
+      "alpha_hit": true,
+      "city_hit": true,
+      "omega_hit": true,
+      "checksum_hit": true
+    },
+    "all_hit": true,
+    "content_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provides a very long document consisting of repeated paragraphs about LLMs and transformers.\n   - Hidden within the text are two s",
+    "reasoning_preview": ""
+  },
+  {
+    "target_tokens": 100000,
+    "prompt_tokens": 98998,
+    "completion_tokens": 200,
+    "wall_s": 26.97,
+    "finish_reason": "length",
+    "needles": {
+      "alpha_hit": true,
+      "city_hit": true,
+      "omega_hit": true,
+      "checksum_hit": true
+    },
+    "all_hit": true,
+    "content_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provides a very long, repetitive text about large language models (LLMs) and transformer architecture.\n   - Hidden within the text",
+    "reasoning_preview": ""
+  },
+  {
+    "target_tokens": 200000,
+    "prompt_tokens": 197391,
+    "completion_tokens": 200,
+    "wall_s": 87.22,
+    "finish_reason": "length",
+    "needles": {
+      "alpha_hit": true,
+      "city_hit": true,
+      "omega_hit": true,
+      "checksum_hit": true
+    },
+    "all_hit": true,
+    "content_preview": "The user wants to extract two specific pieces of information from the provided text:\n1. The city for `QWEN36_PRO5000_ALPHA_20260513`\n2. The checksum for `QWEN36_PRO5000_OMEGA_20260513`\n\nLooking throug",
+    "reasoning_preview": ""
+  },
+  {
+    "target_tokens": 256000,
+    "prompt_tokens": 252510,
+    "completion_tokens": 200,
+    "wall_s": 122.24,
+    "finish_reason": "length",
+    "needles": {
+      "alpha_hit": true,
+      "city_hit": true,
+      "omega_hit": true,
+      "checksum_hit": true
+    },
+    "all_hit": true,
+    "content_preview": "The user wants me to extract two hidden facts from the provided text.\nThe text is a long repetition of a paragraph about large language models, with two hidden facts inserted:\n1. \"QWEN36_PRO5000_ALPHA",
+    "reasoning_preview": ""
+  }
+]
