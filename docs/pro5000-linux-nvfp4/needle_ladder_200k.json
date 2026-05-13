@@ -1,0 +1,63 @@
+[
+  {
+    "target_tokens": 47000,
+    "prompt_tokens": 46855,
+    "wall_s": 11.1,
+    "completion_tokens": 200,
+    "needles": {
+      "alpha_hit": true,
+      "city_hit": true,
+      "omega_hit": true,
+      "checksum_hit": true
+    },
+    "all_hit": true
+  },
+  {
+    "target_tokens": 100000,
+    "prompt_tokens": 98998,
+    "completion_tokens": 200,
+    "wall_s": 28.24,
+    "finish_reason": "length",
+    "needles": {
+      "alpha_hit": true,
+      "city_hit": true,
+      "omega_hit": true,
+      "checksum_hit": true
+    },
+    "all_hit": true,
+    "content_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provides a very long, repetitive text about large language models (LLMs) and transformer architecture.\n   - Hidden within this rep",
+    "reasoning_preview": ""
+  },
+  {
+    "target_tokens": 180000,
+    "prompt_tokens": 177738,
+    "completion_tokens": 200,
+    "wall_s": 70.41,
+    "finish_reason": "length",
+    "needles": {
+      "alpha_hit": true,
+      "city_hit": true,
+      "omega_hit": true,
+      "checksum_hit": true
+    },
+    "all_hit": true,
+    "content_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provides a very long, repetitive text about large language models (LLMs) and transformer architecture.\n   - Hidden within this rep",
+    "reasoning_preview": ""
+  },
+  {
+    "target_tokens": 200000,
+    "prompt_tokens": 197391,
+    "completion_tokens": 200,
+    "wall_s": 72.5,
+    "finish_reason": "length",
+    "needles": {
+      "alpha_hit": true,
+      "city_hit": true,
+      "omega_hit": true,
+      "checksum_hit": true
+    },
+    "all_hit": true,
+    "content_preview": "The user wants me to extract two specific pieces of information from the provided text:\n1. The city for `QWEN36_PRO5000_ALPHA_20260513`\n2. The checksum for `QWEN36_PRO5000_OMEGA_20260513`\n\nI need to s",
+    "reasoning_preview": ""
+  }
+]

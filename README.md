@@ -81,6 +81,30 @@ lie.
 > Ubuntu** ([reported here](https://www.reddit.com/r/LocalLLaMA/comments/1sw21op/comment/oid8d9n/)).
 > This launcher closes that gap on Windows.
 
+## Community Linux / Blackwell validation
+
+An independent Linux run on an RTX PRO 5000 Blackwell 48 GB card
+validated the same Qwen3.6-27B NVFP4 direction at 256K context with
+vLLM 0.20.2, FlashInfer 0.6.8.post1, ModelOpt NVFP4 weights, fp8_e4m3
+KV cache, chunked prefill, and MTP.
+
+Highlights from that reproduction:
+
+| Test | Result |
+|------|--------|
+| 47K health check | 46,855 prompt tokens, 4/4 needles, roughly 5,800 tok/s estimated prefill |
+| 200K target | 197,391 prompt tokens, 4/4 needles |
+| 256K stretch | 252,510 prompt tokens, 4/4 needles after raising output budget |
+| NVFP4 path | `FlashInferCutlassNvFp4LinearKernel` + Triton/FLA GDN prefill + FlashInfer attention |
+| MTP n=3 | 87.8% acceptance, 97.8 tok/s engine decode |
+| MTP n=6 | 78.2% acceptance, 120.9 tok/s engine decode |
+
+This is not a Windows launcher snapshot and it does not replace the
+3090 numbers above. It is a Linux/Blackwell validation showing that the
+NVFP4 + fp8 KV path can run 200K-256K practical needle tests on a single
+48 GB Blackwell workstation GPU without OOM. Full report and raw data:
+[`docs/pro5000-linux-nvfp4/`](docs/pro5000-linux-nvfp4/).
+
 ## Why this exists
 
 Most fast Qwen3.6-27B recipes on r/LocalLLaMA assume Linux + Docker, or

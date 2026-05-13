@@ -1,0 +1,16 @@
+{
+  "target_tokens": 256000,
+  "prompt_tokens": 252510,
+  "completion_tokens": 1284,
+  "wall_s": 35.62,
+  "finish_reason": "stop",
+  "needles": {
+    "alpha_hit": true,
+    "city_hit": true,
+    "omega_hit": true,
+    "checksum_hit": true
+  },
+  "all_hit": true,
+  "content_preview": "Here's a thinking process that leads to the desired output:\n\n1.  **Analyze the Request:**\n    *   **Input:** A very long text consisting of repeated paragraphs about Large Language Models (LLMs) and t",
+  "reasoning_preview": ""
+}

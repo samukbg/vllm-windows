@@ -1,0 +1,82 @@
+[
+  {
+    "target_tokens": 47000,
+    "prompt_tokens": 46855,
+    "completion_tokens": 200,
+    "wall_s": 13.32,
+    "finish_reason": "length",
+    "needles": {
+      "alpha_hit": true,
+      "city_hit": true,
+      "omega_hit": true,
+      "checksum_hit": true
+    },
+    "all_hit": true,
+    "content_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provides a very long document consisting of repeated paragraphs about LLMs and transformers.\n   - Hidden within the text are two s",
+    "reasoning_preview": ""
+  },
+  {
+    "target_tokens": 100000,
+    "prompt_tokens": 98998,
+    "completion_tokens": 200,
+    "wall_s": 27.21,
+    "finish_reason": "length",
+    "needles": {
+      "alpha_hit": true,
+      "city_hit": true,
+      "omega_hit": true,
+      "checksum_hit": true
+    },
+    "all_hit": true,
+    "content_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provides a very long, repetitive text about large language models and transformers.\n   - Hidden within the text are two specific f",
+    "reasoning_preview": ""
+  },
+  {
+    "target_tokens": 200000,
+    "prompt_tokens": 197391,
+    "completion_tokens": 200,
+    "wall_s": 88.71,
+    "finish_reason": "length",
+    "needles": {
+      "alpha_hit": true,
+      "city_hit": true,
+      "omega_hit": true,
+      "checksum_hit": true
+    },
+    "all_hit": true,
+    "content_preview": "The user wants to extract two specific pieces of information from the provided text:\n1. The city associated with the marker ID `QWEN36_PRO5000_ALPHA_20260513`\n2. The checksum associated with the marke",
+    "reasoning_preview": ""
+  },
+  {
+    "target_tokens": 256000,
+    "prompt_tokens": 252510,
+    "completion_tokens": 200,
+    "wall_s": 124.13,
+    "finish_reason": "length",
+    "needles": {
+      "alpha_hit": true,
+      "city_hit": true,
+      "omega_hit": true,
+      "checksum_hit": true
+    },
+    "all_hit": true,
+    "content_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provides a very long, repetitive text about large language models and transformers.\n   - Hidden within the text are two specific f",
+    "reasoning_preview": ""
+  },
+  {
+    "target_tokens": 100000,
+    "prompt_tokens": 98998,
+    "completion_tokens": 1117,
+    "wall_s": 39.02,
+    "finish_reason": "stop",
+    "needles": {
+      "alpha_hit": true,
+      "city_hit": true,
+      "omega_hit": true,
+      "checksum_hit": true
+    },
+    "all_hit": true,
+    "content_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provides a very long, repetitive text about large language models and transformers.\n   - Hidden within the text are two specific f",
+    "reasoning_preview": ""
+  }
+]

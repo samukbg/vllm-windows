@@ -1,0 +1,16 @@
+{
+  "target_tokens": 100000,
+  "prompt_tokens": 98998,
+  "completion_tokens": 1150,
+  "wall_s": 40.32,
+  "finish_reason": "stop",
+  "needles": {
+    "alpha_hit": true,
+    "city_hit": true,
+    "omega_hit": true,
+    "checksum_hit": true
+  },
+  "all_hit": true,
+  "content_preview": "Here's thinking process:\nThe user wants me to extract two hidden facts from the provided text.\nThe text is a massive repetition of a paragraph about LLMs, but it contains two hidden sentences embedded",
+  "reasoning_preview": ""
+}
