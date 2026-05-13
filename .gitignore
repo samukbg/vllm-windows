@@ -28,6 +28,9 @@ view_app.py
 test_dashboard_arch.py
 .tui_screens/
 
+# Maintainer-only release runbook
+RELEASING.md
+
 # Local handoff notes (per-session, not pushed)
 HANDOFF.md
 
