@@ -183,9 +183,30 @@ def detect_running(ports: list[int], configs) -> dict[str, RunningProc]:
         port_up = _port_listening(port)
         wrapper_up = bool(wrapper_pid) and _pid_alive(wrapper_pid)
         if not port_up and not wrapper_up:
-            # Both signals say the snapshot is gone, safe to GC.
-            try: Path(mf["__path__"]).unlink()
-            except (OSError, KeyError): pass
+            # Both signals say the snapshot is gone. Apply a 60s grace
+            # period from started_at so we never wipe a manifest while
+            # the wrapper is still spinning up vLLM, where port_up can
+            # flap (listen() called but accept() not yet running) and
+            # pid_alive can briefly miss the wrapper on slow tasklist.
+            # Issue #12: TUI-launched snapshots had their manifest GC'd
+            # in the first poll, leaving the card stuck on LOADING.
+            mf_path = mf.get("__path__")
+            young = False
+            try:
+                import datetime as _dt
+                started = _dt.datetime.fromisoformat(mf.get("started_at") or "")
+                young = (_dt.datetime.now() - started).total_seconds() < 60
+            except (ValueError, TypeError):
+                pass
+            if young:
+                continue
+            print(
+                f"[runtime] GC manifest {mf_path} port={port} "
+                f"wrapper_pid={wrapper_pid} port_up={port_up} wrapper_up={wrapper_up}",
+                flush=True,
+            )
+            try: Path(mf_path).unlink()
+            except (OSError, TypeError): pass
             continue
 
         snap_bat = (mf.get("snapshot_bat") or "").lower()
