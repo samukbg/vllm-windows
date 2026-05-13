@@ -80,7 +80,7 @@ def main() -> int:
         print(f"[stop] ports still busy: {busy}", file=sys.stderr)
         return 1
 
-    # Sweep runtime manifests for any port we just freed — keeps the
+    # Sweep runtime manifests for any port we just freed, keeps the
     # launcher dashboard accurate even if the snapshot wrapper died
     # before its own clear_manifest finally-block ran.
     runtime_dir = LOG_DIR / "runtime"

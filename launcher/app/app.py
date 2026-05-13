@@ -41,10 +41,10 @@ class LauncherApp(App):
         self.bundle = cfgmod.load()
         self.running: dict = {}
         self.running_ids: set[str] = set()
-        # ready_ids ⊆ running_ids — the API responds to /v1/models. Anything
+        # ready_ids ⊆ running_ids, the API responds to /v1/models. Anything
         # in running_ids \ ready_ids is still booting (loading weights /
         # compiling kernels). loading_ids holds optimistic state set the
-        # moment the user clicks Load, before the snapshot's manifest lands —
+        # moment the user clicks Load, before the snapshot's manifest lands ,
         # cleared once the next poll picks the snapshot up in running_ids.
         self.ready_ids: set[str] = set()
         self.loading_ids: set[str] = set()
@@ -57,7 +57,7 @@ class LauncherApp(App):
         self.install_screen(self._dashboard, name="dashboard")
         self.install_screen(HelpScreen(self.bundle), name="help")
         self.push_screen("dashboard")
-        # Manifest detection runs every 2s — cheap, all file-based, no
+        # Manifest detection runs every 2s, cheap, all file-based, no
         # network. The /v1/models readiness probe is much more expensive
         # (vLLM logs every request) so it lives on a separate gate that
         # only fires while a DetailScreen is open and at most every 5s.
@@ -74,13 +74,13 @@ class LauncherApp(App):
         """Push the CRUD editor; on dismiss, reload the bundle so the
         dashboard reflects added/renamed/deleted snapshots.
 
-        ``select_id`` pre-selects a row in the manager's left list — used
+        ``select_id`` pre-selects a row in the manager's left list, used
         by the Detail screen's Edit button so the user lands on the
         snapshot they were viewing.
         """
         from .screens.snapshot_manage import SnapshotManageScreen
         def _on_close(_changed: bool | None) -> None:
-            # Always reload — even on cancel the user may have hit Save before
+            # Always reload, even on cancel the user may have hit Save before
             # backing out. Cheap (a single yaml.safe_load).
             self.bundle = cfgmod.load()
             # Rebuild the dashboard instance so its cards-grid reflects the
@@ -124,11 +124,11 @@ class LauncherApp(App):
     def _apply_running(self, running, ids):
         self.running = running
         self.running_ids = ids
-        # ready_ids is a subset of running_ids — drop entries whose snapshot
+        # ready_ids is a subset of running_ids, drop entries whose snapshot
         # is no longer running. New entries are added by _probe_ready_worker.
         self.ready_ids = {cid for cid in self.ready_ids if cid in ids}
         # Anything we optimistically marked as loading and which now shows up
-        # in running_ids has been picked up by the manifest poller — drop it
+        # in running_ids has been picked up by the manifest poller, drop it
         # from the optimistic set so we don't double-count.
         self.loading_ids = {cid for cid in self.loading_ids if cid not in ids}
         if self._dashboard is not None:
@@ -144,7 +144,7 @@ class LauncherApp(App):
 
         Conditions to fire:
           1. A DetailScreen is the active screen (nobody else needs ready_ids).
-          2. That screen's cfg is running but not yet known to be ready —
+          2. That screen's cfg is running but not yet known to be ready ,
              once we've confirmed ready, we stop probing entirely until the
              snapshot leaves running_ids (e.g. user clicks Unload).
           3. At least 5 seconds have elapsed since the last probe.
@@ -179,7 +179,7 @@ class LauncherApp(App):
                 self.screen.refresh_state()
 
     def probe_ready_now(self, cid: str) -> None:
-        """Trigger an immediate probe — used when DetailScreen first mounts so
+        """Trigger an immediate probe, used when DetailScreen first mounts so
         an already-loaded snapshot doesn't briefly render as LOADING."""
         if cid not in self.running_ids or cid in self.ready_ids:
             return
@@ -347,7 +347,7 @@ class LauncherApp(App):
                 f"  • {msg}\n"
                 f"  • ping {sd['ssh_host']} → reachable\n"
                 f"  • ssh ready → {'yes' if ssh_ok else 'not yet (still booting)'}\n\n"
-                f"vLLM is NOT running — open the Linux tab and click any active "
+                f"vLLM is NOT running, open the Linux tab and click any active "
                 f"config card → Load to start one (recommended: [b #58a6ff]v17[/])."
             )
         else:

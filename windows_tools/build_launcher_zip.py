@@ -4,7 +4,7 @@ Run on the developer machine ONCE per tag. Produces
 ``qwen3.6-windows-server-portable-x64.zip`` with embeddable Python, all
 launcher dependencies preinstalled, the launcher source, snapshot/tool
 scripts, and (optionally) the patched vLLM wheel. End users unzip and
-double-click ``start.bat`` — they NEVER run pip.
+double-click ``start.bat``, they NEVER run pip.
 
 Pass ``--wheel <path>`` to embed the patched vLLM wheel into the zip
 under ``wheels/`` so the launcher can install it on first run without
@@ -89,7 +89,7 @@ def main() -> int:
         if "+cu13" not in wheel_name:
             print(f"[build] WARNING: --variant=blackwell but wheel '{wheel_name}' "
                   f"has no '+cu13*' local-version tag. Launcher autodetect "
-                  f"will install cu126 torch — Blackwell GPUs will fail to boot.",
+                  f"will install cu126 torch, Blackwell GPUs will fail to boot.",
                   file=sys.stderr)
     if variant == "ampere" and args.wheel:
         wheel_name = Path(args.wheel).name
@@ -148,12 +148,12 @@ def main() -> int:
     txt = pth.read_text(encoding="utf-8")
     if "Lib\\site-packages" not in txt:
         txt = txt.rstrip() + "\nLib\\site-packages\n"
-    # Embedded python ._pth fully owns sys.path — the script's directory
+    # Embedded python ._pth fully owns sys.path, the script's directory
     # is NOT auto-added the way it is for a normal Python install. We
     # need ..\launcher (so `python -m app` works), ..\snapshots (so
     # snapshot scripts can `from _common import ...`), and
     # ..\windows_tools (so bench_summarize.py can `import bench` from
-    # its sibling — the embedded interpreter ignores cwd / PYTHONPATH).
+    # its sibling, the embedded interpreter ignores cwd / PYTHONPATH).
     for extra in ("..\\launcher", "..\\snapshots", "..\\windows_tools"):
         if extra not in txt:
             lines = txt.splitlines()

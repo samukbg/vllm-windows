@@ -1,4 +1,4 @@
-"""PP=2 variant — uses BOTH 3090s so KV cache fits a much larger context.
+"""PP=2 variant, uses BOTH 3090s so KV cache fits a much larger context.
 
 Measured on 2x RTX 3090, Qwen3.6-27B Lorbus AutoRound INT4, fp8_e4m3 KV,
 TRITON_ATTN, gpu-memory-utilization=0.92:
@@ -34,7 +34,7 @@ TP = 1
 PP = 2  # split model across GPU0 + GPU1 -> free up KV space for context
 USE_NGRAM = False  # Drafter pre-init patch unblocks boot but PP+ngram trips an
                     # assertion in _prepare_inputs (total_num_scheduled_tokens>0)
-                    # — structural scheduler bug, not patchable inline.
+                    #, structural scheduler bug, not patchable inline.
 NGRAM_NUM_SPEC_TOKENS = 5
 NGRAM_PROMPT_LOOKUP_MAX = 4
 NGRAM_PROMPT_LOOKUP_MIN = 2
@@ -102,7 +102,7 @@ def main() -> int:
     env["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "0"
     env["NCCL_ASYNC_ERROR_HANDLING"] = "0"
     env["PYTHONFAULTHANDLER"] = "1"
-    # Reddit Splinter2121 envs were measured on PP=2 2026-04-25 — regressed
+    # Reddit Splinter2121 envs were measured on PP=2 2026-04-25, regressed
     # decode 40.3 → 39.2 tok/s. Probably Gloo-CPU-relay bound, not compute/mem.
 
     args = [
@@ -121,7 +121,7 @@ def main() -> int:
         # snapshots/start_5090.py for the full rationale and bench evidence.
         "--enable-prefix-caching",
         "--enable-chunked-prefill",
-        "--no-scheduler-reserve-full-isl",  # +5k KV pool; decode within noise
+        "--no-scheduler-reserve-full-isl", # +5k KV pool; decode within noise
         "--enable-auto-tool-choice",
         "--tool-call-parser=qwen3_coder",
         "--reasoning-parser=qwen3",

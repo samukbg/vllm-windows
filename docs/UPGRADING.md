@@ -1,12 +1,12 @@
 # Upgrading
 
-> **v1.3.3 — PP=2 fixed on Ampere, real long-prompt bench fixture.**
+> **v1.3.3, PP=2 fixed on Ampere, real long-prompt bench fixture.**
 > The `pp2_160k` (Both-GPU big-ctx) snapshot failed to boot on every
 > public release zip prior to v1.3.3 with
 > `ZMQError: Protocol not supported (addr='ipc://...')` because pyzmq
-> has no `ipc://` transport on Windows. New patched wheels —
+> has no `ipc://` transport on Windows. New patched wheels ,
 > `vllm-0.19.0+devnen.3` (Ampere, CUDA 12.6) and
-> `vllm-0.20.0+cu132.devnen.2` (Blackwell, CUDA 13.2) — add a
+> `vllm-0.20.0+cu132.devnen.2` (Blackwell, CUDA 13.2), add a
 > Windows-only ipc -> tcp fallback in `vllm/utils/network_utils.py`,
 > plus a worker-pipe `_ConnectionBase` widening on the Ampere wheel
 > (the Blackwell wheel inherited that piece from upstream 0.20.0).
@@ -26,10 +26,10 @@
 >   under the PSF Agreement). Replaces the 670-token stub. Documented
 >   `decode_tps` numbers are reproducible from a clean install.
 >
-> Single-GPU users see no functional change — the new wheel is a
+> Single-GPU users see no functional change, the new wheel is a
 > strict superset of `+devnen.1`.
 
-> **v1.3.2 — Blackwell env hardening + cache-poison prevention.** A
+> **v1.3.2, Blackwell env hardening + cache-poison prevention.** A
 > hotfix for a class of slow-prefill regression that bit RTX 5090 NVFP4
 > users when system CUDA installs (or conda `cudatoolkit`) leaked into
 > the launch env. New `clean_cuda_env()` in `snapshots/_common.py`
@@ -59,7 +59,7 @@
 > Ampere/Ada paths; they keep the legacy `cuda_env()` semantics and
 > aren't exposed to this class of bug.
 
-> **v1.2.5 — prefix caching back on, big prefill speedup.** Re-enables
+> **v1.2.5, prefix caching back on, big prefill speedup.** Re-enables
 > `--enable-prefix-caching` in all 12 snapshots. The v1.2.2-era
 > stepwise decode regression
 > ([vLLM issue #17140](https://github.com/vllm-project/vllm/issues/17140))
@@ -73,9 +73,9 @@
 > +18 % KV pool headroom, and no decode regression after repeated
 > long-context hits. Same fix flipped for the 3090/4090 snapshots on
 > the assumption that the same upstream code path is in the
-> `vllm-0.19.0+devnen.1` source tree (it is — verified via gh API).
+> `vllm-0.19.0+devnen.1` source tree (it is, verified via gh API).
 > If you upgrade with `update.bat` you keep your `launcher\configs.yaml`
-> by default, which is fine — the snapshot `.py` files carry the
+> by default, which is fine, the snapshot `.py` files carry the
 > actual flag and are replaced. Full write-up and bench tables in
 > [`docs/TUNING.md`](TUNING.md).
 >

@@ -6,13 +6,13 @@ Checks:
   1. vLLM importable, version is 0.19.0+devnen.* or 0.20.0+cu132.devnen.*.
      The PEP 440 local-version segment (`+devnen.*` / `+cu132.devnen.*`)
      is the proof that the devnen Windows patches (wildcard model name,
-     reasoning parser, etc.) are baked into this wheel — they live in
+     reasoning parser, etc.) are baked into this wheel, they live in
      the engine fork, not as runtime overlay files.
   2. nvidia-smi reports at least one Ampere+ GPU (sm_86 or higher).
      Blackwell (sm_120) is accepted but warns if the installed wheel is
      a cu126 build, and Ampere/Ada warn if the wheel is a cu130 build.
   3. CUDA 13 runtime shim present when running on a +cu13* wheel.
-  4. MSVC `cl.exe` resolvable (warn if not — only matters for FlashInfer JIT).
+  4. MSVC `cl.exe` resolvable (warn if not, only matters for FlashInfer JIT).
 
 Exit code 0 = all green. 1 = at least one red. 2 = warnings only.
 """
@@ -44,9 +44,9 @@ def check_vllm(venv: Path) -> tuple[str, str, str]:
     except subprocess.CalledProcessError as e:
         return ("RED", f"vllm import failed: {e}", "")
     if out.startswith("0.19"):
-        return ("GRN", f"vllm {out} (Ampere/Ada — cu126 / 30+40 series)", out)
+        return ("GRN", f"vllm {out} (Ampere/Ada, cu126 / 30+40 series)", out)
     if out.startswith("0.20"):
-        return ("GRN", f"vllm {out} (Blackwell-capable — cu13x / 30+40+50 series)", out)
+        return ("GRN", f"vllm {out} (Blackwell-capable, cu13x / 30+40+50 series)", out)
     return ("YEL", f"unexpected version {out!r}, expected 0.19.x or 0.20.x", out)
 
 
@@ -62,14 +62,14 @@ def check_devnen_tag(vllm_version: str) -> tuple[str, str]:
     if not vllm_version:
         return ("RED", "no version string to check")
     if "+" not in vllm_version:
-        return ("RED", f"upstream wheel {vllm_version!r} — devnen patches "
+        return ("RED", f"upstream wheel {vllm_version!r}, devnen patches "
                 "(wildcard model name, qwen3 reasoning) are NOT applied. "
                 "Reinstall from the launcher zip's bundled wheel.")
     local = vllm_version.split("+", 1)[1]
     # 0.19 line: +devnen.N
     # 0.20 line: +cu132.devnen.N
     if "devnen" in local:
-        return ("GRN", f"devnen wheel tag '+{local}' — patches baked in")
+        return ("GRN", f"devnen wheel tag '+{local}', patches baked in")
     return ("YEL", f"local-version '+{local}' is not a known devnen tag; "
             "this wheel may be a SystemPanic upstream build without the "
             "wildcard model-name and reasoning-parser patches")
@@ -102,7 +102,7 @@ def check_gpu(vllm_version: str = "") -> tuple[str, str]:
     if too_old:
         return ("YEL", f"non-Ampere+ GPU detected: {too_old}; this fork was tuned on sm_86")
     if blackwell and vllm_version.startswith("0.19"):
-        return ("YEL", f"Blackwell GPU {blackwell} but cu126 wheel installed — "
+        return ("YEL", f"Blackwell GPU {blackwell} but cu126 wheel installed, "
                 "use the qwen3.6-windows-server-portable-x64-blackwell.zip release.")
     if not blackwell and vllm_version.startswith("0.20"):
         return ("GRN", f"{' | '.join(lines)} (running cu13x wheel)")
@@ -120,7 +120,7 @@ def check_cuda13_shim(venv: Path, vllm_version: str) -> tuple[str, str]:
     for c in candidates:
         if c.is_file():
             return ("GRN", f"found at {c.parent}")
-    return ("YEL", "cuda13_shim/bin/cudart64_13.dll missing — "
+    return ("YEL", "cuda13_shim/bin/cudart64_13.dll missing, "
             "launcher rebuilds this on next boot from torch/lib/")
 
 
@@ -136,7 +136,7 @@ def check_msvc() -> tuple[str, str]:
     for c in candidates:
         if Path(c).exists():
             return ("YEL", f"MSVC found at {c} but not on PATH (only matters for FlashInfer)")
-    return ("YEL", "MSVC not found — fine for TRITON_ATTN; FlashInfer JIT would fail")
+    return ("YEL", "MSVC not found, fine for TRITON_ATTN; FlashInfer JIT would fail")
 
 
 def _default_venv() -> Path:
@@ -179,12 +179,12 @@ def main() -> int:
         print(f"  [{sym}] {name.ljust(width)} {msg}")
 
     if bad_any:
-        print("\nFAIL — fix RED items before launching.")
+        print("\nFAIL, fix RED items before launching.")
         return 1
     if yellow:
-        print("\nOK with warnings — review WRN items.")
+        print("\nOK with warnings, review WRN items.")
         return 2
-    print("\nALL GREEN — ready to launch.")
+    print("\nALL GREEN, ready to launch.")
     return 0
 
 

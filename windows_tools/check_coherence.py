@@ -5,9 +5,9 @@ will cheerfully report 60+ tok/s while emitting ``* * * *`` or ``the the the``.
 TPS without coherence is a lie. This script catches that before you ship.
 
 Tests:
-  1. Short-answer sanity   — "Capital of France?" (200 tok)
-  2. Long-form narrative   — Whiskers cat / rooftop garden (700 tok)
-  3. Code generation       — Iterative Fibonacci with docstring (500 tok)
+  1. Short-answer sanity  , "Capital of France?" (200 tok)
+  2. Long-form narrative  , Whiskers cat / rooftop garden (700 tok)
+  3. Code generation      , Iterative Fibonacci with docstring (500 tok)
 
 Detects degenerate-attractor patterns: ``* * * *``, ``the the the``,
 ``**:**:**``, ``\\n\\n\\n\\n``, mid-sentence collapse to a 1–2 token loop.
@@ -27,12 +27,12 @@ import urllib.request
 import urllib.error
 
 DEGENERATE_PATTERNS = [
-    (r"(\*\s*){5,}",                        "asterisk attractor"),
-    (r"(\bthe\s+){5,}",                     "the-the-the loop"),
-    (r"(\ba\s+){5,}",                       "a-a-a loop"),
-    (r"(\*\*:){3,}",                        "delimiter loop"),
-    (r"\n{6,}",                             "newline loop"),
-    (r"(\b\w+\b\s+)\1{4,}",                 "single-token loop"),
+    (r"(\*\s*){5,}", "asterisk attractor"),
+    (r"(\bthe\s+){5,}", "the-the-the loop"),
+    (r"(\ba\s+){5,}", "a-a-a loop"),
+    (r"(\*\*:){3,}", "delimiter loop"),
+    (r"\n{6,}", "newline loop"),
+    (r"(\b\w+\b\s+)\1{4,}", "single-token loop"),
 ]
 
 
@@ -66,8 +66,8 @@ def grade(label: str, text: str) -> tuple[bool, list[str]]:
 
 
 TIERS = [
-    ("capital",   "What is the capital of France? Answer in one sentence.",                      200),
-    ("whiskers",  "Write a 300-word story about a cat named Whiskers exploring a rooftop garden.", 700),
+    ("capital", "What is the capital of France? Answer in one sentence.", 200),
+    ("whiskers", "Write a 300-word story about a cat named Whiskers exploring a rooftop garden.", 700),
     ("fibonacci", "Write a Python function to compute the nth Fibonacci number iteratively, with a one-line docstring.", 500),
 ]
 
@@ -87,7 +87,7 @@ def main() -> int:
         try:
             text = ask(args.port, prompt, n, args.model, args.host)
         except urllib.error.URLError as e:
-            print(f"\n[error] cannot reach http://{args.host}:{args.port} — {e}", file=sys.stderr)
+            print(f"\n[error] cannot reach http://{args.host}:{args.port}, {e}", file=sys.stderr)
             return 2
         ok, issues = grade(label, text)
         if not args.quiet:
@@ -96,7 +96,7 @@ def main() -> int:
         if not ok:
             all_ok = False
 
-    print("\nCOHERENT" if all_ok else "\nDEGENERATE — do not trust TPS numbers from this config.")
+    print("\nCOHERENT" if all_ok else "\nDEGENERATE, do not trust TPS numbers from this config.")
     return 0 if all_ok else 1
 
 

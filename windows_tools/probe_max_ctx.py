@@ -66,7 +66,7 @@ def main() -> int:
             proc.kill()
 
     if found is None:
-        print("\n[probe] no 'estimated maximum model length' line seen — config probably booted OK")
+        print("\n[probe] no 'estimated maximum model length' line seen, config probably booted OK")
         return 2
     print(f"\n[probe] estimated maximum model length: {found}")
     print(f"[probe] suggested --max-model-len: {int(found * 0.99)}")

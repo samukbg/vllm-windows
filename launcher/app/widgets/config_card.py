@@ -66,7 +66,7 @@ class ConfigCard(Static):
             self.add_class("-blocked")
         elif self.cfg.tier == "legacy":
             self.add_class("-legacy")
-        # Linux configs don't have an arch chip — only tag Windows cards.
+        # Linux configs don't have an arch chip, only tag Windows cards.
         if isinstance(self.cfg, WinConfig):
             arch = config_arch(self.cfg)
             if arch == "blackwell":
@@ -101,7 +101,7 @@ class ConfigCard(Static):
         def chip(k: str, v: str, style="#58a6ff"):
             t.append(f"{k}", style="dim #8b949e"); t.append(f" {v}  ", style=style)
 
-        spec = "—"
+        spec = ","
         if cfg.mtp_n is not None:
             spec = f"MTP{cfg.mtp_n}"
         elif cfg.draft_model_n is not None:

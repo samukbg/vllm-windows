@@ -1,4 +1,4 @@
-"""Snapshot manager screen — full CRUD editor for windows.configs[].
+"""Snapshot manager screen, full CRUD editor for windows.configs[].
 
 Master-detail layout: ListView of snapshot ids on the left, form on the right.
 Save persists to configs.yaml AND rewrites the matching constants in the
@@ -28,15 +28,15 @@ from ..config import WinConfig, ConfigsBundle
 
 # Editable fields shown in the form. (input_id, label, placeholder, default_str_for_None)
 _NUMERIC_FIELDS = [
-    ("port",             "Port",        "5001",            ""),
-    ("tp",               "TP",          "tensor-parallel", "1"),
-    ("pp",               "PP",          "pipeline-parallel", "1"),
-    ("mem_util",         "GPU mem-util","0.0 - 1.0",       "0.92"),
-    ("mtp_n",            "MTP n",       "blank = no spec-decode", ""),
-    ("ctx",              "Context",     "tokens",          "32000"),
-    ("decode_tps",       "Decode tok/s","measured",        ""),
+    ("port", "Port", "5001", ""),
+    ("tp", "TP", "tensor-parallel", "1"),
+    ("pp", "PP", "pipeline-parallel", "1"),
+    ("mem_util", "GPU mem-util","0.0 - 1.0", "0.92"),
+    ("mtp_n", "MTP n", "blank = no spec-decode", ""),
+    ("ctx", "Context", "tokens", "32000"),
+    ("decode_tps", "Decode tok/s","measured", ""),
     ("prefill_tps_cold", "Prefill tok/s cold", "measured", ""),
-    ("power_cap_w",      "Power cap",   "watts",           ""),
+    ("power_cap_w", "Power cap", "watts", ""),
 ]
 
 _TIERS = ("active", "legacy", "blocked")
@@ -145,7 +145,7 @@ class SnapshotManageScreen(Screen[bool]):
     def __init__(self, bundle: ConfigsBundle,
                  select_id: str | None = None) -> None:
         super().__init__()
-        # Working copy — edits land in this list, written to disk only on Save.
+        # Working copy, edits land in this list, written to disk only on Save.
         self.bundle = bundle
         self._snapshot_bundle = copy.deepcopy(bundle.windows)
         self._current_id: str | None = None  # None == editing an unsaved new entry
@@ -171,7 +171,7 @@ class SnapshotManageScreen(Screen[bool]):
                 with VerticalScroll(id="sm-form-scroll"):
                     with Horizontal(classes="sm-row"):
                         yield Label("ID")
-                        yield WindowsInput(placeholder="snapshot key — e.g. my_64k",
+                        yield WindowsInput(placeholder="snapshot key, e.g. my_64k",
                                     id="sm-in-id")
                     with Horizontal(classes="sm-row"):
                         yield Label("Tagline")
@@ -344,7 +344,7 @@ class SnapshotManageScreen(Screen[bool]):
     def on_list_view_highlighted(self, ev: ListView.Highlighted) -> None:
         # Arrow-key navigation fires Highlighted but not Selected. Without
         # this, the form keeps showing the previously-clicked entry while
-        # the user thinks they've navigated — so Delete operates on the
+        # the user thinks they've navigated, so Delete operates on the
         # wrong row.
         self._sync_from_list_item(ev.item)
 
@@ -397,7 +397,7 @@ class SnapshotManageScreen(Screen[bool]):
         self._sync_selects_from_state()
         self.query_one("#sm-in-id", Input).focus()
         self._set_status(
-            "New snapshot — fill in ID and fields, Ctrl+S to save. "
+            "New snapshot, fill in ID and fields, Ctrl+S to save. "
             "A new start_<id>.py and .bat will be generated from start_speed.py.",
             "info",
         )
@@ -450,7 +450,7 @@ class SnapshotManageScreen(Screen[bool]):
             if not ok: return
             removed = sio.delete_snapshot_files(Path(c.py), Path(c.bat))
             self._snapshot_bundle = [x for x in self._snapshot_bundle if x.id != c.id]
-            # Persist to YAML immediately — avoids stale file references on
+            # Persist to YAML immediately, avoids stale file references on
             # next launcher boot if the user closes without explicit save.
             self.bundle.windows = list(self._snapshot_bundle)
             sio.save_configs_yaml(self.bundle)
@@ -477,7 +477,7 @@ class SnapshotManageScreen(Screen[bool]):
 
         existing_ids = {c.id for c in self._snapshot_bundle if c.id != self._current_id}
         if new_id in existing_ids:
-            self._set_status(f"ID '{new_id}' already exists — pick another", "err")
+            self._set_status(f"ID '{new_id}' already exists, pick another", "err")
             return
 
         # Validate numerics. Accept empty for optional fields.
@@ -570,7 +570,7 @@ class SnapshotManageScreen(Screen[bool]):
             cfg.notes = form["notes"]
             _ = changes  # status banner could include this if we wanted detail
 
-        # Persist YAML — point bundle.windows at the working list, dump.
+        # Persist YAML, point bundle.windows at the working list, dump.
         self.bundle.windows = list(self._snapshot_bundle)
         try:
             sio.save_configs_yaml(self.bundle)

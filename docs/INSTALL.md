@@ -10,9 +10,9 @@ For users who just want it to run.
    - **30-series / 40-series (Ampere, Ada):**
      `qwen3.6-windows-server-portable-x64-ampere.zip` (or the legacy
      unsuffixed `qwen3.6-windows-server-portable-x64.zip` alias for
-     pre-v1.2.3 auto-update compatibility — same content)
+     pre-v1.2.3 auto-update compatibility, same content)
      (vLLM 0.19.0+devnen.3, CUDA 12.6 / cu126 torch). This is the default.
-   - **50-series (Blackwell — 5060/5070/5080/5090):**
+   - **50-series (Blackwell, 5060/5070/5080/5090):**
      `qwen3.6-windows-server-portable-x64-blackwell.zip`
      (vLLM 0.20.0+cu132.devnen.2, CUDA 13.2 / cu130 torch, plus an
      auto-built CUDA 13 runtime shim). Requires NVIDIA driver 596 or
@@ -39,7 +39,7 @@ For users who just want it to run.
      `pyproject.toml` imports pybind11 at module load and pip's
      build-isolation env doesn't always propagate on embedded Python),
      then installs the bundled vLLM wheel into a sibling `venv\`. The
-     devnen patches are baked into the wheel — there's nothing to apply.
+     devnen patches are baked into the wheel, there's nothing to apply.
    - Optional one-click coherence check after the server boots.
 
 ## 2. Wheel-only, for users with their own venv
@@ -54,7 +54,7 @@ pip install <url-to-wheel-from-Release>
 
 The devnen wheel has all Windows patches (wildcard `served-model-name`,
 qwen3 reasoning parser, on 0.19 also the CPU-relay distributed shims)
-baked in via the engine fork — there's nothing to apply at install
+baked in via the engine fork, there's nothing to apply at install
 time. Confirm the wheel is the right one:
 
 ```powershell
@@ -111,9 +111,9 @@ What each row means:
 | Row | What it checks | Common causes of yellow / red |
 |---|---|---|
 | `vllm` | vllm imports and version starts with 0.19.x or 0.20.x | RED if the venv's pip install never finished (re-run `start.bat` to repair). YELLOW if the wheel is some other version (this fork has only validated 0.19.x and 0.20.x). |
-| `devnen_tag` | The wheel's PEP 440 local-version segment is `+devnen.*` (0.19 line) or `+cu132.devnen.*` (0.20 line). This is the only at-runtime evidence that the devnen patches (wildcard `served-model-name`, qwen3 reasoning parser, on 0.19 also the CPU-relay distributed shims) are present — they're baked into the wheel by the engine fork, not applied as runtime overlays. | RED if you ran `pip install --upgrade vllm` and pulled an upstream wheel without the local-version tag. Reinstall from the launcher zip's bundled `wheels\` directory. |
+| `devnen_tag` | The wheel's PEP 440 local-version segment is `+devnen.*` (0.19 line) or `+cu132.devnen.*` (0.20 line). This is the only at-runtime evidence that the devnen patches (wildcard `served-model-name`, qwen3 reasoning parser, on 0.19 also the CPU-relay distributed shims) are present, they're baked into the wheel by the engine fork, not applied as runtime overlays. | RED if you ran `pip install --upgrade vllm` and pulled an upstream wheel without the local-version tag. Reinstall from the launcher zip's bundled `wheels\` directory. |
 | `gpu` | `nvidia-smi` enumerates at least one GPU, and the wheel and GPU's compute capability agree | RED if no GPU. YELLOW if the wheel and GPU mismatch: cu126 wheel + Blackwell GPU (use the `-blackwell` zip), or cu130 wheel + Ampere/Ada (works with driver 596+; harmless). |
-| `cuda13_shim` | `cuda13_shim\bin\cudart64_13.dll` exists (only checked for 0.20 wheels) | YELLOW if missing on a Blackwell install. The launcher rebuilds it from `venv\Lib\site-packages\torch\lib\` on the next boot, so this self-heals — usually means the install is brand new and hasn't booted yet. |
+| `cuda13_shim` | `cuda13_shim\bin\cudart64_13.dll` exists (only checked for 0.20 wheels) | YELLOW if missing on a Blackwell install. The launcher rebuilds it from `venv\Lib\site-packages\torch\lib\` on the next boot, so this self-heals, usually means the install is brand new and hasn't booted yet. |
 | `msvc` | `cl.exe` is on PATH or a known VS install path exists | YELLOW always-OK. Only matters for the flashinfer-sampler decode boost; the PyTorch fallback sampler works without MSVC. See [`TUNING.md`](TUNING.md). |
 
 ## Model weights

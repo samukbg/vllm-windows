@@ -1,11 +1,11 @@
-# RTX 5090 (sm_120) GDN prefill power ceiling — solved by NVFP4
+# RTX 5090 (sm_120) GDN prefill power ceiling, solved by NVFP4
 
 **Status (2026-05-06):** SOLVED for users who can switch quantization.
 The historical ceiling described below applies to the AutoRound INT4
 weights we shipped originally. **Switching to NVFP4 weights
 (`Peutlefaire/Qwen3.6-27B-NVFP4`, snapshot `start_5090_nvfp4`) lifts
 prefill from ~1100 tok/s @ 170W to ~5300 tok/s @ 580W on a 47k prompt
-— 5x throughput, full TDP utilization, mem-BW% climbs from 0% to 35%.**
+, 5x throughput, full TDP utilization, mem-BW% climbs from 0% to 35%.**
 Decode also improves: ~92 tok/s (vs 73 baseline).
 
 The GDN linear-attention layer ceiling is still real for its share of
@@ -25,7 +25,7 @@ entirely.
 | Tool-calling tier-1 (emit tool_call) | `windows_tools/test_tool_calling.py` | PASS |
 | Tool-calling tier-2 (synthesize tool result) | `windows_tools/test_tool_calling.py` | PASS |
 | Tool-calling tier-3 (developer-role alias) | `windows_tools/test_tool_calling.py` | PASS\* |
-| Coding quality (12-problem slice) vs AutoRound | `windows_tools/eval_humaneval_slice.py` | 12/12 vs 12/12 — tied 100%\*\* |
+| Coding quality (12-problem slice) vs AutoRound | `windows_tools/eval_humaneval_slice.py` | 12/12 vs 12/12, tied 100%\*\* |
 
 \* Required a 1-line patch to `templates/qwen3.5-enhanced.jinja` so the
 template prelude (lines 96/104) accepts `developer` as well as `system`.
@@ -67,11 +67,11 @@ dead ends.
 | Prefill (30k tok)    | 170W    | 100% | ~0%    | ~660  |
 | Prefill (60k tok)    | 170W    | 100% | ~0%    | ~1100 |
 
-Decode is healthy — power and mem-BW utilization are exactly what you
+Decode is healthy, power and mem-BW utilization are exactly what you
 want for a memory-bandwidth-bound INT4-weight inference path.
 
 Prefill shows the diagnostic signature: SM at 100% but VRAM untouched.
-That means kernels are spinning — but on a small working set, not
+That means kernels are spinning, but on a small working set, not
 streaming weights or KV from HBM. Classic recurrent-state-update
 profile.
 
@@ -101,7 +101,7 @@ vLLM's `ChunkGatedDeltaRule` op
 (`forward_native`, fallback). The 5090 falls through to FLA. Three
 underlying CUDA paths exist; none reach our GPU.
 
-### Path 1 — FlashInfer SM100 (CuTe-DSL Blackwell datacenter)
+### Path 1, FlashInfer SM100 (CuTe-DSL Blackwell datacenter)
 
 - **Source:** `flashinfer/gdn_kernels/blackwell/gdn_prefill.py`,
   exposed as `chunk_gated_delta_rule_sm100`.
@@ -129,7 +129,7 @@ underlying CUDA paths exist; none reach our GPU.
   the prebuilt wheels (`12.0a` for CUDA <12.9, `12.0f` for >=12.9)
   don't ship `121a`-targeted code at all.
 
-### Path 2 — FlashInfer SM90 (Hopper C++ JIT)
+### Path 2, FlashInfer SM90 (Hopper C++ JIT)
 
 - **Source:** `flashinfer/data/csrc/prefill_kernel_delta_rule_sm90.cu`
   + headers under `flashinfer/data/include/flashinfer/flat/prefill/`.
@@ -142,11 +142,11 @@ underlying CUDA paths exist; none reach our GPU.
   Compatibility Guide, plain `compute_90` PTX **does** JIT to sm_120
   via the driver. But `compute_90a` PTX (the `a` suffix is required
   for `wgmma.mma_async`) has **no forward or backward compatibility
-  guarantee** — it's hard-failed on sm_120.
+  guarantee**, it's hard-failed on sm_120.
 - **The kernel itself uses Hopper-only features:**
   `prefill_kernel_delta_rule_sm90.cuh:33` includes
   `flashinfer/flat/hopper/device/device_universal.hpp` and uses
-  `cutlass::gemm::KernelTmaWarpSpecializedCooperative` — both Hopper
+  `cutlass::gemm::KernelTmaWarpSpecializedCooperative`, both Hopper
   warp-specialized async pipelines that only exist on `sm_90a`. The
   whole kernel body is gated on `#if defined(FLAT_SM90A_ENABLED)`.
 - **Verdict:** even if we patched the build flags from `sm_90a` to
@@ -158,28 +158,28 @@ underlying CUDA paths exist; none reach our GPU.
   using our packaged FlashInfer 0.6.8 would never get this kernel
   built.
 
-### Path 3 — FLA Triton (`forward_native`, the actual hot path)
+### Path 3, FLA Triton (`forward_native`, the actual hot path)
 
 This is what runs on the 5090. Every FLA op file under
 `vllm/model_executor/layers/fla/ops/` is a vendored copy from
 `fla-org/flash-linear-attention`. The forward chunked path used by
 `ChunkGatedDeltaRule.forward_native` is a chain of:
 
-1. `cumsum.chunk_local_cumsum` — small pre-scan
-2. `chunk_scaled_dot_kkt.chunk_scaled_dot_kkt_fwd` — `K @ K^T` per chunk
-3. `solve_tril.solve_tril` — small triangular solve (18 `tl.dot`s,
+1. `cumsum.chunk_local_cumsum`, small pre-scan
+2. `chunk_scaled_dot_kkt.chunk_scaled_dot_kkt_fwd`, `K @ K^T` per chunk
+3. `solve_tril.solve_tril`, small triangular solve (18 `tl.dot`s,
    gated by `FLA_TRIL_PRECISION`, defaults to `"ieee"` = scalar fp32)
-4. `wy_fast.recompute_w_u_fwd` — produces W and U tensors for the chunk
-5. `chunk_delta_h.chunk_gated_delta_rule_fwd_h` — **the recurrent
+4. `wy_fast.recompute_w_u_fwd`, produces W and U tensors for the chunk
+5. `chunk_delta_h.chunk_gated_delta_rule_fwd_h`, **the recurrent
    state update**. Iterates chunks serially, h_t = h_{t-1} + outer(k,v)
    with delta-rule gating. 8 `tl.dot` calls on bf16. This is the
    dominant kernel.
-6. `chunk_o.chunk_fwd_o` — output projection, 3 `tl.dot` on bf16.
+6. `chunk_o.chunk_fwd_o`, output projection, 3 `tl.dot` on bf16.
 
 The big kernels (#5, #6) use plain `tl.dot` on bf16. **Triton 3.6.0 +
 CUDA 13.0 + sm_120 lowers these to native `mma.sync` tensor-core
 instructions correctly** (the older `getMMAVersionSafe` assertion
-crash that hit Triton 3.2.x on sm_120 — triton-lang/triton #6087 —
+crash that hit Triton 3.2.x on sm_120, triton-lang/triton #6087 ,
 was fixed by 3.5). Tensor cores are active. The 170W ceiling is
 *not* a "tensor cores aren't lit up" bug.
 
@@ -199,18 +199,18 @@ All experiments below were on `C:\Temp\qwen36-27b\qwen3.6-windows-server\`
 (test install mirror of the source repo). Patches were rolled back
 after measurement.
 
-### Experiment 1 — set `FLA_TRIL_PRECISION=tf32`
+### Experiment 1, set `FLA_TRIL_PRECISION=tf32`
 
 `solve_tril.py:21` defaults to `"ieee"` (scalar fp32). Setting to
 `"tf32"` makes the 18 `tl.dot`s in `solve_tril` use TF32 tensor cores.
 
 - Result: power went 170W → 219W (+30%) and mem-BW 0% → 5%, **but
   prefill tok/s did not improve** (~570 tok/s on 60k prompts vs ~1100
-  tok/s baseline). solve_tril is NOT the dominant kernel — it does
+  tok/s baseline). solve_tril is NOT the dominant kernel, it does
   small triangular solves, the GEMM-heavy work is in `chunk_delta_h`
   and `chunk_o` which already use tensor cores by default.
 
-### Experiment 2 — remove `allow_tf32=False` in two FLA kernels
+### Experiment 2, remove `allow_tf32=False` in two FLA kernels
 
 `wy_fast.py:93` and `cumsum.py:156` had explicit `allow_tf32=False`,
 forcing scalar fp32. Removed both.
@@ -218,13 +218,13 @@ forcing scalar fp32. Removed both.
 - Result: no measurable change. These kernels do small contractions on
   the float32 cumulative-g and beta tensors; not bandwidth-binding.
 
-### Experiment 3 — force the SM100 CuTe-DSL kernel on sm_120
+### Experiment 3, force the SM100 CuTe-DSL kernel on sm_120
 
 Patched `flashinfer.utils.is_sm100a_supported` to also return True for
 `major == 12`, then called `chunk_gated_delta_rule(...)` on a synth
 input.
 
-- Result: **`_has_blackwell_prefill = False`** at module load — the
+- Result: **`_has_blackwell_prefill = False`** at module load, the
   CuTe-DSL kernel was never importable because `nvidia-cutlass-dsl` is
   not installed. Falls through to the SM90 branch, which then fails to
   JIT because **`ninja` is not on PATH**. So on this install, both
@@ -234,7 +234,7 @@ input.
   kernel uses `tcgen05` etc. (see Path 1 above). This experiment
   conclusively confirmed the upstream-fix-required posture.
 
-### Experiment 4 — widen `chunk_delta_h.py` autotune
+### Experiment 4, widen `chunk_delta_h.py` autotune
 
 The kernel has a hardcoded
 `for num_warps in [2, 4] for BV in [32, 64]` autotune (12 configs),
@@ -261,7 +261,7 @@ than `chunk_delta_h`'s default search allowed.
 - Reverted. The narrow `[2, 4]` × `[32, 64]` default is correct for
   sm_120 on this kernel.
 
-### Experiment 5 — env var experiments
+### Experiment 5, env var experiments
 
 Tested `CUDA_FORCE_PTX_JIT=1` (forces driver to ignore embedded cubins
 and JIT all PTX), and various `FLA_USE_TMA` toggles. No path that
@@ -276,78 +276,78 @@ If a future engineer wants to pick this up, these are the load-bearing
 upstream issues. Read in this order.
 
 **FlashInfer:**
-- [#2340](https://github.com/flashinfer-ai/flashinfer/issues/2340) —
+- [#2340](https://github.com/flashinfer-ai/flashinfer/issues/2340) ,
   "`chunk_gated_delta_rule` for Blackwell". OPEN. Original ask.
   Maintainers say closed by #3001, but #3001 is sm_100 only. **The
   RTX 5090 / sm_120 case is what's actually missing.**
-- [#3001](https://github.com/flashinfer-ai/flashinfer/pull/3001) —
+- [#3001](https://github.com/flashinfer-ai/flashinfer/pull/3001) ,
   MERGED. Adds the CuTe-DSL Blackwell kernel that's sm_100/sm_100a
   only. All benchmarks on B200.
-- [#2555](https://github.com/flashinfer-ai/flashinfer/issues/2555) —
+- [#2555](https://github.com/flashinfer-ai/flashinfer/issues/2555) ,
   "SM120 attention kernels exist but are blocked by wiring issues". A
   whole separate set of patchwork PRs (#2598, #2689, #2885, #3016) for
   attention/MLA/MoE on sm_120. None target GDN.
-- [#3170](https://github.com/flashinfer-ai/flashinfer/issues/3170) —
+- [#3170](https://github.com/flashinfer-ai/flashinfer/issues/3170) ,
   DGX Spark (SM121) audit. The canonical reference for sm_100 vs
   sm_120 vs sm_121 differences. Confirms the wheel build matrix
   doesn't ship `121a` cubins.
-- [#2649](https://github.com/flashinfer-ai/flashinfer/issues/2649) —
+- [#2649](https://github.com/flashinfer-ai/flashinfer/issues/2649) ,
   Compile for `sm_120f` (family) instead of just `sm_120a`.
-- [#1147](https://github.com/flashinfer-ai/flashinfer/issues/1147) —
+- [#1147](https://github.com/flashinfer-ai/flashinfer/issues/1147) ,
   Original "Does FlashInfer support SM120?" question, 10mo old.
 
 **vLLM:**
-- [#36598](https://github.com/vllm-project/vllm/issues/36598) — CLOSED.
+- [#36598](https://github.com/vllm-project/vllm/issues/36598), CLOSED.
   "Triton autotuner OOM on Qwen3.5/Qwen3-Next GDN layers (non-SM90
   GPUs)". Confirms our diagnosis: *"non-SM90 GPUs (e.g. RTX 5090,
   SM120) [run] the Triton-based forward_native path"*. Fix landed was
   a profile-time KV-cache reservation tweak, NOT a new kernel.
-- [#36973](https://github.com/vllm-project/vllm/issues/36973) — OPEN,
+- [#36973](https://github.com/vllm-project/vllm/issues/36973), OPEN,
   active (23 comments). `_warmup_prefill_kernels` in `qwen3_next.py`
   leaks ~3.4 GiB on the Triton path. Adjacent issue, not a fix for us.
-- [#34948](https://github.com/vllm-project/vllm/issues/34948) — OPEN.
+- [#34948](https://github.com/vllm-project/vllm/issues/34948), OPEN.
   "Qwen3.5 CUDA Illegal Memory Access in GDN Kernel".
-- [#39287](https://github.com/vllm-project/vllm/issues/39287) — OPEN
+- [#39287](https://github.com/vllm-project/vllm/issues/39287), OPEN
   RFC. "Handle GDN prefill kernel JIT compilation failures".
-- [#36450](https://github.com/vllm-project/vllm/issues/36450) — OPEN.
+- [#36450](https://github.com/vllm-project/vllm/issues/36450), OPEN.
   "Qwen3.5 AWQ models crash during inference on RTX 5090 (Blackwell)
   with Triton OOM in `solve_tril`".
 
 **Triton:**
-- [#9933](https://github.com/triton-lang/triton/issues/9933) — OPEN.
+- [#9933](https://github.com/triton-lang/triton/issues/9933), OPEN.
   "SM100 (Blackwell): ptxas C7907 ICE eliminates most autotuner
   configs for `mamba3_siso_bwd_kernel_dqkv`, causing 38.7x regression
   vs SM90". Important context for why widening autotune on Blackwell
   is dangerous: failed configs become trap stubs that mis-rank.
-- [#5950](https://github.com/triton-lang/triton/issues/5950) — OPEN,
+- [#5950](https://github.com/triton-lang/triton/issues/5950), OPEN,
   1y old. "Does Triton support new features of Blackwell for RTX5090
   and 5080?" Tracking issue.
-- [#6087](https://github.com/triton-lang/triton/issues/6087) —
+- [#6087](https://github.com/triton-lang/triton/issues/6087) ,
   Resolved by 3.5+. The `getMMAVersionSafe` assertion that hit
   sm_120 on Triton 3.2.x. Why Triton 3.5+ is required for any GDN
   on a 5090.
-- [#7550](https://github.com/triton-lang/triton/issues/7550) —
+- [#7550](https://github.com/triton-lang/triton/issues/7550) ,
   `tl.dot_scaled` actually using fp16 mma on RTX 5090 (sm_120
   scaled-dot lowering still incomplete).
-- [#8695](https://github.com/triton-lang/triton/issues/8695) —
+- [#8695](https://github.com/triton-lang/triton/issues/8695) ,
   "GatedDeltaNet backward error on Blackwell". Pipeliner bug
   underlying multiple FLA correctness issues.
 
 **FLA (`fla-org/flash-linear-attention`):**
 - [#790](https://github.com/fla-org/flash-linear-attention/issues/790)
-  — OPEN. "Incorrect outputs for
+ , OPEN. "Incorrect outputs for
   `chunk_gated_delta_rule_fwd_kernel_h_blockdim64` on Blackwell for
   certain autotune configs (`num_warps=4 num_stages∈{2,3}`)". Fixed
   in commit
   [`02af88e`](https://github.com/fla-org/flash-linear-attention/commit/02af88ef8aa7f7043a899c9ca6fde168e1cf8c7e)
   by switching to `safe_dot`. **vLLM's vendored FLA at the moment of
-  vLLM 0.20.0 release may not include this fix.** Worth verifying — if
+  vLLM 0.20.0 release may not include this fix.** Worth verifying, if
   it doesn't, we may have a silent correctness drift in long
   prefills, not just the perf ceiling.
-- [#638](https://github.com/fla-org/flash-linear-attention/issues/638) —
+- [#638](https://github.com/fla-org/flash-linear-attention/issues/638) ,
   CLOSED `wontfix triton-bug`. Underlying cause of #790, points at
   Triton #8695.
-- [#609](https://github.com/fla-org/flash-linear-attention/issues/609) —
+- [#609](https://github.com/fla-org/flash-linear-attention/issues/609) ,
   CLOSED. Disable TMA on Blackwell. Already fixed.
 
 ---
@@ -357,7 +357,7 @@ upstream issues. Read in this order.
 If someone wants to try to fix this: the "expensive but realistic"
 options, ordered by tractability.
 
-**Option A — Switch to SGLang on Linux/WSL (escape hatch).**
+**Option A, Switch to SGLang on Linux/WSL (escape hatch).**
 
 Community signal (perplexity social mode, 2026-05) says SGLang's
 sm_120 GDN path is more active than vLLM's; `voipmonitor/sglang:cu130`
@@ -367,7 +367,7 @@ scope of `qwen3.6-windows-server` (we're a vLLM-on-native-Windows
 project) but is a real escape hatch for users who hit the wall.
 Compare numbers and document.
 
-**Option B — Backport / write a native sm_120 GDN prefill kernel
+**Option B, Backport / write a native sm_120 GDN prefill kernel
 for FlashInfer.**
 
 This is what FlashInfer #2340 is asking for. Effort: multi-week.
@@ -381,22 +381,22 @@ Approach:
    sm_120's native bf16 MMA shape.
 4. Verify TMA can stay (sm_120 supports TMA per #3170 audit) or
    replace with cp.async-bulk equivalent.
-5. Build with `-gencode=arch=compute_120,code=sm_120` (no `a` —
+5. Build with `-gencode=arch=compute_120,code=sm_120` (no `a` ,
    plain so PTX JITs forward).
 6. Submit to FlashInfer.
 
-**Option C — Replace FLA's chunk-based scan with TFLA (Tiled Flash
+**Option C, Replace FLA's chunk-based scan with TFLA (Tiled Flash
 Linear Attention).**
 
 The arxiv paper [2503.14376](https://arxiv.org/abs/2503.14376) ("More
 Efficient Linear RNN and xLSTM Kernels", "Tiled Flash Linear
 Attention") describes a re-tiling of the chunk-based scan that's more
-parallel — instead of strictly serial chunk-to-chunk dependency, it
+parallel, instead of strictly serial chunk-to-chunk dependency, it
 processes blocks of chunks in a flash-attention style. Would need a
 Triton port targeting sm_120 specifically. Effort: 1-2 weeks for
 someone who knows Triton + flash attention well.
 
-**Option D — Wait.**
+**Option D, Wait.**
 
 Issue tracking `flashinfer-ai/flashinfer #2340`. If/when sm_120 GDN
 ships in a FlashInfer release, our existing
@@ -421,7 +421,7 @@ GDN-on-FlashInfer work on Windows:
   kernels (decode and prefill) are inert
   (`_has_blackwell_prefill = False`).
 - **`CUDA_HOME` is not set** by default. FlashInfer needs a directory
-  containing `cudart64_13.dll` — we've shimmed this elsewhere
+  containing `cudart64_13.dll`, we've shimmed this elsewhere
   (`C:\Temp\cuda_shim\bin\` with the dll copied from
   `torch/lib/cudart64_13.dll`) and it works, but it's not yet baked
   into the snapshot env.
@@ -450,7 +450,7 @@ GDN-on-FlashInfer work on Windows:
 
 ---
 
-## Open angles — not yet tested
+## Open angles, not yet tested
 
 The patches-at-our-layer search space above is exhausted, but two
 adjacent angles remain untested as of 2026-05-06. Either could
@@ -466,14 +466,14 @@ sm_120-native FP4 tensor-core kernels (the path wired via
 `is_sm120a_supported` in `flashinfer/utils.py:566`), which is a
 completely different code path from GDN. Even if GDN stays at the
 170W ceiling for its share of layers, the rest of the model could
-prefill faster — potentially raising overall throughput substantially.
+prefill faster, potentially raising overall throughput substantially.
 
 **Evidence it's worth testing:**
 - u/Maheidem on r/LocalLLaMA (thread `1t5dya8`) reports running
   `Peutlefaire/Qwen3.6-27B-NVFP4` on a single 5090, 200k context,
   vLLM 0.20.1.dev / Torch 2.13.dev / CUDA 13.0, with MTP enabled.
 - u/rpkarma in the same thread: NVFP4 needs the right consumer
-  Blackwell kernels — "even more specific ones if you're on SM121."
+  Blackwell kernels, "even more specific ones if you're on SM121."
   Implies sm_120 vs sm_121 dispatch matters; check before assuming
   it Just Works.
 
@@ -484,7 +484,7 @@ prefill faster — potentially raising overall throughput substantially.
    to `start_5090_nvfp4.py`, swapped `--quantization auto-round` for
    `--quantization compressed-tensors`, pointed `MODEL_PATH` at the
    NVFP4 dir.)
-3. Run `check_coherence.py --port 5001` first — must pass.
+3. Run `check_coherence.py --port 5001` first, must pass.
 4. Bench prefill under `nvidia-smi dmon -s pucvmet`. Compare to
    baseline 170W / ~1100 tok/s @ 60k.
 5. If prefill power climbs past 170W AND tok/s improves materially:
@@ -493,7 +493,7 @@ prefill faster — potentially raising overall throughput substantially.
 
 **Caveat for whoever picks this up:** the bundled Torch 2.11.0 ships
 arch list `['sm_75', 'sm_80', 'sm_86', 'sm_90', 'sm_100', 'sm_120']`
-— note **`sm_120` but NOT `sm_120a`**. NVFP4 FP4 MMA instructions
+, note **`sm_120` but NOT `sm_120a`**. NVFP4 FP4 MMA instructions
 may need the `a`-suffix variant. If NVFP4 fails to compile or
 JIT-load, this is a likely cause. See angle #2.
 
@@ -512,7 +512,7 @@ don't have access to:
   `is_sm120a_supported` will fall back to slower paths or fail at
   load time
 
-**This may be a separate finding from the GDN ceiling** — even if
+**This may be a separate finding from the GDN ceiling**, even if
 NVFP4 doesn't help GDN, the missing `sm_120a` may hurt other
 Blackwell-specific paths. Worth reporting upstream to
 `devnen/vllm-windows` (and ultimately `SystemPanic/vllm-windows`)
@@ -521,21 +521,21 @@ in the wheel build script.
 
 **Note:** Adding `120a` is a wheel rebuild, not a runtime patch. If
 NVFP4 (angle #1) needs `120a` to work, this becomes a blocker for
-shipping NVFP4 — would need to coordinate with devnen on a wheel
+shipping NVFP4, would need to coordinate with devnen on a wheel
 rebuild that includes `12.0+PTX` or `12.0a` in the arch list.
 
 ### 3. TurboQuant KV cache (adjacent, not central)
 
 vLLM PR #39931 (just merged) enables TurboQuant KV-cache
-quantization for Qwen3.5/3.6. Different lever — KV cache, not
+quantization for Qwen3.5/3.6. Different lever, KV cache, not
 prefill speed. Lets users get more context at the cost of (probably
 small) PPL hit. Per Reddit discussion (`1t3zu7u`):
 
 - Flag: `--kv-cache-dtype turboquant_k8v4` (most conservative
-  variant — also `_4bit_nc`, `_k3v4_nc`, `_3bit_nc`)
+  variant, also `_4bit_nc`, `_k3v4_nc`, `_3bit_nc`)
 - Requires `--max-num-batched-tokens >= 4096` for chunked-prefill
   + mamba-align
-- Quality is contested — only `_k8v4` claimed comparable to Q4_0
+- Quality is contested, only `_k8v4` claimed comparable to Q4_0
 
 Not a prefill-speed fix, but a useful adjacent option. Would land
 as a separate snapshot variant (`start_5090_turboquant.py`) if it

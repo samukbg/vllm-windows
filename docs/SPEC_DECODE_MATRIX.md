@@ -21,7 +21,7 @@ AutoRound preserves) and the same TP=1 + MTP row applies. See
 [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md).
 
 **PP=2 status (2026-05-07).** The Ampere `pp2_160k` snapshot was broken
-on every release prior to v1.3.3 — the `+devnen.1` wheel didn't carry
+on every release prior to v1.3.3, the `+devnen.1` wheel didn't carry
 the Windows ZMQ ipc -> tcp swap, so PP=2 crashed at engine init with
 `ZMQError: Protocol not supported`. Fixed in `+devnen.2` (Ampere), and
 the matching `+cu132.devnen.2` Blackwell wheel carries the same fix.

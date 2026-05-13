@@ -21,14 +21,14 @@ depends on what changes.
 | Model | Status | Notes |
 |---|---|---|
 | `Lorbus/Qwen3.6-27B-int4-AutoRound` | ✅ blessed | Default on Ampere/Ada (3090, 4090). MTP head in BF16, ~17 GB on disk, 64.5 tok/s decode on 3090. Not offered for 5090 since v1.3.7 (170W prefill ceiling on consumer Blackwell, see [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md)). |
-| `Peutlefaire/Qwen3.6-27B-NVFP4` | ✅ blessed (Blackwell default since v1.3.0) | NVFP4 routed via FlashInfer's sm_120 native FP4 tensor cores. Bundled MTP head. The visual tower is deliberately preserved unquantized (the recipe's `ignore` list excludes `re:visual.*` / `re:model.visual.*`), so the same download serves both `rtx5090_nvfp4` (text-only) and `rtx5090_nvfp4_vision` (image + video input) — the difference is a CLI flag flip, not a different model. `--quantization=compressed-tensors`. See [`BLACKWELL.md`](BLACKWELL.md), [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md). |
+| `Peutlefaire/Qwen3.6-27B-NVFP4` | ✅ blessed (Blackwell default since v1.3.0) | NVFP4 routed via FlashInfer's sm_120 native FP4 tensor cores. Bundled MTP head. The visual tower is deliberately preserved unquantized (the recipe's `ignore` list excludes `re:visual.*` / `re:model.visual.*`), so the same download serves both `rtx5090_nvfp4` (text-only) and `rtx5090_nvfp4_vision` (image + video input), the difference is a CLI flag flip, not a different model. `--quantization=compressed-tensors`. See [`BLACKWELL.md`](BLACKWELL.md), [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md). |
 | Other Qwen3.6-27B INT4 quants (cyankiwi, groxaxo/Qwen3.6-GPTQ-Pro-4bit, others) | 🟡 boots but no MTP | Loader silently skips the quantised MTP head, draft acceptance ≈ 0%, decode caps at the un-speculated rate (~30-40 tok/s). See [`MTP_HEAD.md`](MTP_HEAD.md). |
 | Qwen3.6-27B FP8 | 🟡 untested | Should fit a 24 GB card with smaller ctx. Sampler defaults still apply. Please post numbers. |
 | Qwen3.6-27B INT8 | ❌ doesn't fit | Weights ~27 GiB; doesn't fit a 24 GiB card. PP=2 across 2× 24 GB works in principle but means no MTP (PP+MTP broken on 0.19), capping decode near pp2_160k's 43 tok/s. Use INT4 AutoRound. |
 | Qwen3 / Qwen3.5-27B (non-thinking variants) | 🟡 mostly works | The reasoning parser expects `<think>` tags; non-thinking models won't emit them, so the reasoning field stays empty. Otherwise serves fine. |
 | Qwen3-14B INT4 | 🟢 works on 16 GB cards | Drop-in for 4060 Ti 16G / 4070 Ti / 4080 / 5070. Smaller weights, no MTP head, but vLLM's continuous batching is still a win over llama.cpp. Edit a snapshot to point at the new weights. |
 | Qwen3-8B / 4B / 1.7B / 0.6B INT4 | 🟢 works | For 8-12 GB cards. Useful for draft-model spec-decode in theory but vocab mismatch with 27B blocks that path. |
-| Qwen3.6-27B "abliterated" / Heretic / Censorship-removed forks | 🟡 works, INT4-AutoRound boots cleanly | See ["Abliterated / heretic / uncensored variants"](#abliterated--heretic--uncensored-variants) below. `lyf/Qwen3.6-27B-heretic-v2-mtp-int4-AutoRound` mirrors Lorbus's recipe (BF16 MTP head preserved). For Blackwell, `sakamakismile/Huihui-Qwen3.6-27B-abliterated-NVFP4-TEXT-MTP`. Other variants boot but may silently no-op MTP — verify via `MTP_HEAD.md`. |
+| Qwen3.6-27B "abliterated" / Heretic / Censorship-removed forks | 🟡 works, INT4-AutoRound boots cleanly | See ["Abliterated / heretic / uncensored variants"](#abliterated--heretic--uncensored-variants) below. `lyf/Qwen3.6-27B-heretic-v2-mtp-int4-AutoRound` mirrors Lorbus's recipe (BF16 MTP head preserved). For Blackwell, `sakamakismile/Huihui-Qwen3.6-27B-abliterated-NVFP4-TEXT-MTP`. Other variants boot but may silently no-op MTP, verify via `MTP_HEAD.md`. |
 | Llama 3.1, Mistral, Gemma, Phi, etc. | 🟡 boots, wrong defaults | The wheel can serve them, but the shipped chat template, tool-call parser, reasoning parser, and snapshots are Qwen3-specific. You'd need to rebuild the snapshot to swap the template and parsers. Outside what this project does for you. |
 | GGUF anything | ❌ won't work | This is vLLM, not llama.cpp. Use the safetensors version of the model. |
 
@@ -37,8 +37,8 @@ depends on what changes.
 ### Three ways to point the launcher at custom weights
 
 Pick whichever fits your workflow. All three trigger the same boot-time
-banner — `[model] using <path>  (source: env|--model-dir|saved-config|default|drive-scan)`
-— so you can always confirm the launcher picked the right dir.
+banner, `[model] using <path>  (source: env|--model-dir|saved-config|default|drive-scan)`
+, so you can always confirm the launcher picked the right dir.
 
 | Mechanism | When to use | How |
 |---|---|---|
@@ -52,7 +52,7 @@ an NVFP4 model on disk and switch by snapshot).
 
 After any swap, **always**:
 
-1. Patch the tokenizer (idempotent — skips if already patched):
+1. Patch the tokenizer (idempotent, skips if already patched):
    ```powershell
    python windows_tools\patch_tokenizer.py "D:\models\<your-model>"
    ```
@@ -68,13 +68,13 @@ After any swap, **always**:
    python windows_tools\check_coherence.py --port 5001
    ```
 4. Watch the boot log for `draft_acceptance_rate`. Near 0.0 means the
-   quant's MTP head got silently skipped — see
+   quant's MTP head got silently skipped, see
    [`MTP_HEAD.md`](MTP_HEAD.md) for the safetensors-grep procedure
    that confirms whether `mtp.fc` is in BF16.
 
 ### Same model class (Qwen3.6 INT4 AutoRound from a different uploader)
 
-The simplest case — the snapshot's `--quantization=auto-round` flag
+The simplest case, the snapshot's `--quantization=auto-round` flag
 and the shipped chat template / tool-call parser / reasoning parser
 all apply unchanged. Download into a folder (convention:
 `<drive>:\_models\<UploaderName>\<ModelName>\`) and use one of the
@@ -102,14 +102,14 @@ preserved):
 [`prithivMLmods/Qwen3.6-27B-abliterated-rMAX`](https://huggingface.co/prithivMLmods/Qwen3.6-27B-abliterated-rMAX),
 [`wangzhang/Qwen3.6-27B-abliterated`](https://huggingface.co/wangzhang/Qwen3.6-27B-abliterated),
 [`acyildirimer/Qwen3.6-27B-int4-AutoRound`](https://huggingface.co/acyildirimer/Qwen3.6-27B-int4-AutoRound).
-They boot, but the MTP head BF16 status isn't confirmed — run the
+They boot, but the MTP head BF16 status isn't confirmed, run the
 safetensors-grep procedure in [`MTP_HEAD.md`](MTP_HEAD.md) before
 trusting any decode tok/s number, or just watch the boot log for
 `draft_acceptance_rate`. If it's near 0.0, the quant's MTP head got
 silently skipped and you're running un-speculated decode.
 
 **The full-precision base** [`huihui-ai/Huihui-Qwen3.6-27B-abliterated`](https://huggingface.co/huihui-ai/Huihui-Qwen3.6-27B-abliterated)
-exists but is 54 GiB on disk — too big for any 24 GB card and too big
+exists but is 54 GiB on disk, too big for any 24 GB card and too big
 even for a 32 GB 5090 with useful KV. Useful only on A100 80 GB or
 similar. Quantize it yourself if you want a custom AutoRound INT4
 without trusting a third-party uploader; the AutoRound recipe Lorbus
@@ -132,7 +132,7 @@ start.bat --model-dir "D:\models\Qwen3.6-27B-heretic-v2-mtp-int4-AutoRound"
 The launcher prints `[model] using <path>  (source: --model-dir)` at
 boot so you can confirm it picked up the swap. Run
 [`windows_tools\check_coherence.py --port 5001`](../windows_tools/check_coherence.py)
-once it's serving — coherence-validated TPS is the only TPS that
+once it's serving, coherence-validated TPS is the only TPS that
 matters, and abliteration occasionally damages the model in ways the
 quant can't recover.
 
@@ -154,7 +154,7 @@ quant can't recover.
 
 ### Different model family (Llama, Mistral, Gemma)
 
-This is no longer a "swap weights" operation — the chat template,
+This is no longer a "swap weights" operation, the chat template,
 tool-call parser, and reasoning parser baked into every snapshot are
 Qwen3-specific. You'd need to:
 
@@ -183,7 +183,7 @@ INT4 AutoRound is the sweet spot on 24 GB cards:
 - Marlin INT4 kernels on Ampere/Ada/Blackwell are the fastest path
   vLLM has for 4-bit weights on consumer NVIDIA.
 - AutoRound preserves the MTP head in BF16, which keeps spec-decode
-  working — almost no other 4-bit quantizer does this for
+  working, almost no other 4-bit quantizer does this for
   Qwen3.6-27B.
 
 If you have a 32+ GiB card (5090, A6000, A100) and want to try INT8

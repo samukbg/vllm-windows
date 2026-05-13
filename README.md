@@ -60,7 +60,7 @@ Long-prompt rows were measured on a ~100 KB / ~24 k-token Python
 source-summary prompt fed to `windows_tools\bench_summarize.py`. From
 v1.3.3 the shipped fixture is CPython 3.12's `Lib/inspect.py`
 (~130 KB, ~25 k tokens, PSF-licensed) so anyone can reproduce these
-numbers from a clean install — `windows_tools/bench_prompt_sample.py`
+numbers from a clean install, `windows_tools/bench_prompt_sample.py`
 is the file. The short-prompt row was measured on a ~200-token chat
 turn via `windows_tools\bench.py`. All numbers
 [coherence-validated](docs/COHERENCE.md), TPS without coherence is a

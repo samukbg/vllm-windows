@@ -13,7 +13,7 @@ how often it bites.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Decode tok/s drops 30–70 % after a long-context (~24 k token) request and **stays slow** for every subsequent request, even short ones, until the server is restarted | Prefix caching + Qwen3-Next hybrid Mamba interaction, [vLLM issue #17140](https://github.com/vllm-project/vllm/issues/17140). SSM state was not tracked across prefix-cached KV blocks, so each long-context request left Mamba state dirty and triggered another stepwise drop. | **Fixed upstream in [vLLM PR #25752](https://github.com/vllm-project/vllm/pull/25752) (Mamba2 APC, merged 2025-10-04), which is in both shipped wheels.** v1.2.2 to v1.2.4 worked around the bug with `--no-enable-prefix-caching`; **v1.2.5 re-enables prefix caching** because the fix is now in the wheel — vLLM auto-sets `mamba_cache_mode='align'` for `Qwen3_5` (`config.py:367`) so SSM state aligns with cache blocks. Empirically validated on the 5090 (`windows_tools/repro_17140.py` shows ≤3 % drift after 2× 24 k hits, no stepwise drop). 3090/4090 snapshots got the same flip on the assumption that the same source tree ships in the 0.19.0 wheel. If the regression resurfaces on Ampere hardware, please open an issue. Custom snapshots should pass `"--enable-prefix-caching"`. |
+| Decode tok/s drops 30–70 % after a long-context (~24 k token) request and **stays slow** for every subsequent request, even short ones, until the server is restarted | Prefix caching + Qwen3-Next hybrid Mamba interaction, [vLLM issue #17140](https://github.com/vllm-project/vllm/issues/17140). SSM state was not tracked across prefix-cached KV blocks, so each long-context request left Mamba state dirty and triggered another stepwise drop. | **Fixed upstream in [vLLM PR #25752](https://github.com/vllm-project/vllm/pull/25752) (Mamba2 APC, merged 2025-10-04), which is in both shipped wheels.** v1.2.2 to v1.2.4 worked around the bug with `--no-enable-prefix-caching`; **v1.2.5 re-enables prefix caching** because the fix is now in the wheel, vLLM auto-sets `mamba_cache_mode='align'` for `Qwen3_5` (`config.py:367`) so SSM state aligns with cache blocks. Empirically validated on the 5090 (`windows_tools/repro_17140.py` shows ≤3 % drift after 2× 24 k hits, no stepwise drop). 3090/4090 snapshots got the same flip on the assumption that the same source tree ships in the 0.19.0 wheel. If the regression resurfaces on Ampere hardware, please open an issue. Custom snapshots should pass `"--enable-prefix-caching"`. |
 | `OSError: free memory < required` at startup despite a 24 GB card | `--gpu-memory-utilization >= 0.95` on a card with the display attached | Drop to 0.92 (or use `start_gpu0_50k`) |
 | `ValueError: To serve at least one request with the model's max seq len (X), N GiB KV cache is needed ...` | `--max-model-len` is higher than what fits in the available KV pool | Read `estimated maximum model length is M` from the same error and set `--max-model-len ≈ 0.99 × M`. Or run `python windows_tools\probe_max_ctx.py --snapshot snapshots\start_speed.py` |
 | `TRITON_ATTN only accepts {"fp8","fp8_e4m3"}` | `fp8_e5m2` copied from a Linux recipe | Change to `fp8_e4m3`. Linux features that ship `fp8_e5m2` and TurboQuant 3-bit don't apply to this wheel. |
@@ -22,11 +22,11 @@ how often it bites.
 | `ValidationError: Target and draft model should have the same vocabulary size` | Vocab mismatch (Qwen3 drafter under Qwen3.5/3.6 target) | Qwen3.6-27B is vocab=248320; no small (≤2 B) Qwen3 drafter has that vocab. Don't try to use draft-model spec-decode on this model class. |
 | `FileNotFoundError` during first request after fresh boot | FlashInfer JIT tripping ninja MAX_PATH | Use TRITON_ATTN. Pass `--attention-backend=TRITON_ATTN` as a CLI flag (the env var alone is ignored on 0.19.0). |
 | TP=2 loads fine but decodes at ~7 tok/s | CPU-relay allreduce dominating per-layer cost | Don't use TP=2 on Windows. Use PP=2 or TP=1. |
-| Boot hangs forever in worker | Wheel is unpatched upstream SystemPanic build (no CPU-relay shim on 0.19, no wildcard model name) | `python windows_tools\verify_install.py --venv venv`. If `devnen_tag` row is RED, reinstall from the launcher zip's bundled `wheels\` directory — the patches are baked into that wheel and there's nothing to apply on the side. |
+| Boot hangs forever in worker | Wheel is unpatched upstream SystemPanic build (no CPU-relay shim on 0.19, no wildcard model name) | `python windows_tools\verify_install.py --venv venv`. If `devnen_tag` row is RED, reinstall from the launcher zip's bundled `wheels\` directory, the patches are baked into that wheel and there's nothing to apply on the side. |
 | Port 5001 in use | Prior server didn't exit cleanly | `python windows_tools\tune_restart.py --port 5001` sweeps PIDs from the log file and re-launches |
 | `zmq.error.ZMQError: Address in use (addr='tcp://127.0.0.1:459NN')` | Orphan EngineCore from previous run still holds an ephemeral ZMQ port | Same, `tune_restart.py` walks every `EngineCore pid=N` line in the log |
 | **`zmq.error.ZMQError: Protocol not supported (addr='ipc://...')`** at engine init on `pp2_160k` | Wheel pre-`+devnen.2` (any release before v1.3.3). pyzmq has no `ipc://` transport on Windows; this got patched in v1.3.3's `vllm-0.19.0+devnen.2` Ampere wheel and `vllm-0.20.0+cu132.devnen.2` Blackwell wheel. | Run `update.bat` to v1.3.3+. The Ampere zip and Blackwell zip both ship the patched wheel. |
-| `AssertionError` at `multiproc_executor.py:736` after the ipc fix | Wheel has the `network_utils.py` overlay but not the `_ConnectionBase` widening — happens with hand-applied runtime patches against the old `+devnen.1` Ampere wheel. | Same fix — update to v1.3.3+ so the bundled wheel carries both patches. |
+| `AssertionError` at `multiproc_executor.py:736` after the ipc fix | Wheel has the `network_utils.py` overlay but not the `_ConnectionBase` widening, happens with hand-applied runtime patches against the old `+devnen.1` Ampere wheel. | Same fix, update to v1.3.3+ so the bundled wheel carries both patches. |
 | **`AttributeError: module 'os' has no attribute 'sched_yield'`** in worker procs / EngineCore on `pp2_160k` | Wheel `+devnen.2` (v1.3.3 release). vLLM 0.19's `vllm/distributed/utils.py` set `USE_SCHED_YIELD` purely from `sys.version_info`, so on Python 3.11+/3.10.8+ Windows the `sched_yield()` wrapper called the missing POSIX-only `os.sched_yield()`. Surfaced after `+devnen.2`'s ipc->tcp swap let PP=2 boots reach `shm_broadcast.acquire_read`'s spin-wait. Reported in [issue #14](https://github.com/devnen/qwen3.6-windows-server/issues/14). | Run `update.bat` to v1.3.4+. The new `+devnen.3` Ampere wheel adds the Windows guard so the wrapper takes the `time.sleep(0)` fallback. Single-card snapshots are unaffected. |
 | Output appears in `reasoning` field with `content=""` and `finish_reason=length` | `max_tokens` ran out before `</think>` | Raise `max_tokens`, or append `/no_think` to the prompt, or drop `--reasoning-parser qwen3` for that workload |
 | `vllm: error: unrecognized arguments: --cuda-graph-sizes ...` | Wrong flag name | It's `--cudagraph-capture-sizes` (no internal hyphen between cuda and graph) |
@@ -58,7 +58,7 @@ how often it bites.
 
 Three log locations matter, in order of how often you'll touch them.
 
-### `logs\vllm_server.<port>.log` — the engine log
+### `logs\vllm_server.<port>.log`, the engine log
 
 The vLLM serving process tees its stdout here. Most failures show up
 in this file. Useful greps:
@@ -89,7 +89,7 @@ Trust the `Maximum concurrency` line. `safe_max_ctx ≈ X × Y`. The
 physical pool. See [`TUNING.md`](TUNING.md#context) for the full
 oracle workflow.
 
-### `logs\runtime\<port>.json` — the runtime manifest
+### `logs\runtime\<port>.json`, the runtime manifest
 
 Each running snapshot writes one file here at boot. The launcher's
 dashboard reads these to decide which card lights up. Schema:

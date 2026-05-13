@@ -31,7 +31,7 @@ def apply_tokenizer_patch(model_dir: Path | str, keep_backup: bool = False) -> b
     and fresh extracts heal themselves without user intervention.
 
     ``keep_backup``: when True, write a ``tokenizer_config.json.bak`` next to
-    the original on first patch. Default False — the upstream HF copy is
+    the original on first patch. Default False, the upstream HF copy is
     canonical, and the .bak is noise for downstream hash validators.
     """
     cfg = Path(model_dir) / "tokenizer_config.json"

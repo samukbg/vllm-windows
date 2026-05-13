@@ -71,11 +71,11 @@ class LinuxDetailScreen(Screen):
         is_running = cfg.id in self.app.linux_running_ids
 
         if is_running:
-            yield Static(f"  ● RUNNING — {cfg.id} on popos:{cfg.port}", classes="running-banner")
+            yield Static(f"  ● RUNNING, {cfg.id} on popos:{cfg.port}", classes="running-banner")
         else:
             sd = self.bundle.linux_shared_defaults
             yield Static(
-                f"  ◌ Linux popos — ssh {sd.get('ssh_user','?')}@{sd.get('ssh_host','?')}",
+                f"  ◌ Linux popos, ssh {sd.get('ssh_user','?')}@{sd.get('ssh_host','?')}",
                 classes="linux-banner",
             )
 
@@ -101,7 +101,7 @@ class LinuxDetailScreen(Screen):
             ("ID", cfg.id),
             ("Tagline", cfg.tagline),
             ("Tier / Status", f"{cfg.tier} / {cfg.status}"),
-            ("Launch .sh", cfg.launch_sh or "[#f85149]— (no launcher script)[/]"),
+            ("Launch .sh", cfg.launch_sh or "[#f85149], (no launcher script)[/]"),
             ("Config YAML", cfg.yaml_path),
             ("GPU", cfg.gpu),
             ("TP × PP", f"{cfg.tp} × {cfg.pp}"),
@@ -110,8 +110,8 @@ class LinuxDetailScreen(Screen):
             ("port", str(cfg.port)),
             ("KV dtype", cfg.kv_dtype),
             ("vision tower", "ON" if cfg.vision_on else "OFF (--language-model-only)"),
-            ("MTP n", "—" if cfg.mtp_n is None else str(cfg.mtp_n)),
-            ("draft-model n", "—" if cfg.draft_model_n is None else str(cfg.draft_model_n)),
+            ("MTP n", "," if cfg.mtp_n is None else str(cfg.mtp_n)),
+            ("draft-model n", "," if cfg.draft_model_n is None else str(cfg.draft_model_n)),
             ("Container", f"vllm-qwen36-27b-turbo-{cfg.container}"),
             ("Power cap", f"{cfg.power_cap_w or sd.get('power_cap_w', '?')} W"),
         ]
@@ -147,8 +147,8 @@ class LinuxDetailScreen(Screen):
         ]:
             if v is not None:
                 bench_rows.append((k, str(v)))
-        bench = _kv(bench_rows) if bench_rows else "  [#8b949e]—[/]"
-        notes = (cfg.notes or "—").rstrip()
+        bench = _kv(bench_rows) if bench_rows else "  [#8b949e],[/]"
+        notes = (cfg.notes or ",").rstrip()
 
         actions_help = (
             "[b #58a6ff]Actions[/]\n"

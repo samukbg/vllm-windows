@@ -3,7 +3,7 @@
 Vision twin of start_5090_nvfp4.py.
 
 The Peutlefaire NVFP4 quant deliberately keeps the visual tower unquantized
-(see HF card: ignore=["re:visual.*", "re:model.visual.*"]) — the safetensors
+(see HF card: ignore=["re:visual.*", "re:model.visual.*"]), the safetensors
 already contain the BF16/F32 vision encoder weights alongside the NVFP4 LM
 body. Loading them as multimodal is a flag flip, not a different model.
 
@@ -12,7 +12,7 @@ VRAM cost vs the text-only twin (start_5090_nvfp4.py):
   - per-image visual tokens consume KV cache like text tokens
     (Qwen3.6 visual tokenizer: ~256-1280 tokens per image depending on res)
   - FlashInfer also has to autotune additional GEMM shapes for the vision
-    tower at first boot — expect a longer warmup than the text twin
+    tower at first boot, expect a longer warmup than the text twin
 
 To stay inside the 32 GB envelope, CTX is dropped from 200k -> 120k. If
 you need more, lower --limit-mm-per-prompt or drop mem_util.
@@ -53,7 +53,7 @@ NUM_SPEC_TOKENS = 6
 # ---- Memory + context -------------------------------------------------------
 # Vision encoder weights (~2 GiB unquantized) + the 16k-token encoder cache
 # trim the KV pool vs the text twin. Measured at boot: with ctx=120000 the
-# engine reported KV=66,912 tokens / max-concurrency 1.68x — plenty of slack
+# engine reported KV=66,912 tokens / max-concurrency 1.68x, plenty of slack
 # at max_num_seqs=1. ctx 180000 keeps ~1.12x slack, still safe.
 CTX = 180000
 GPU_MEM_UTIL = 0.95

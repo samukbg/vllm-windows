@@ -64,7 +64,7 @@ Three reasons, all stack-level not config-level:
   (`qwen3.6-windows-server-portable-x64-blackwell.zip`, vLLM
   0.20.0+cu132.devnen.1 against cu130 torch) and AutoRound INT4 + Marlin
   is verified working on sm_120, so this column is no longer "must
-  switch tools" — pick llama.cpp / Ollama if you prefer their UX or
+  switch tools", pick llama.cpp / Ollama if you prefer their UX or
   need partial-RAM offload, but vLLM is no longer Windows-blocked on
   Blackwell. WSL2 +
   [jaMMint's vllm-blackwell-guide](https://github.com/lastloop-ai/vllm-blackwell-guide)

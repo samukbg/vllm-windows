@@ -33,14 +33,14 @@ PORT = 5001  # different from vllm-windows (5000), so both can coexist if needed
 TP = 1
 PP = 1
 USE_MTP = True
-NUM_SPEC_TOKENS = 4  # retest n=4 at 350W — speed budget different than 250W
+NUM_SPEC_TOKENS = 4  # retest n=4 at 350W, speed budget different than 250W
 
 # ---- Memory + context -------------------------------------------------------
 # Single-card Lorbus weight footprint: ~16.9 GB. With fp8_e5m2 KV and
 # gpu-memory-utilization=0.95 we expect ~40-60K tokens of KV. Start ctx modest
 # and grow after first successful boot.
 CTX = 120000  # MTP n=4 ceiling probe
-GPU_MEM_UTIL = 0.948  # GPU1 — vLLM sees free=22.76 GiB after CUDA init → 0.948 ceiling
+GPU_MEM_UTIL = 0.948  # GPU1, vLLM sees free=22.76 GiB after CUDA init → 0.948 ceiling
 KV_CACHE_DTYPE = "fp8_e4m3"  # TRITON_ATTN only accepts fp8/fp8_e4m3 (not e5m2).
 MAX_NUM_BATCHED_TOKENS = 4128
 

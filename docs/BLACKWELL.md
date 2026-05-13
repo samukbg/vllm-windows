@@ -8,7 +8,7 @@ Single landing page for everything Blackwell. If you have an RTX 5060,
 
 1. Download `qwen3.6-windows-server-portable-x64-blackwell.zip` from
    the [Releases page](https://github.com/devnen/qwen3.6-windows-server/releases).
-   **Not** the default zip — the default is for 30/40-series only.
+   **Not** the default zip, the default is for 30/40-series only.
 2. Make sure your NVIDIA driver is **596 or newer** (CUDA 13 is
    required). `nvidia-smi` shows the driver version.
 3. Extract anywhere, double-click `start.bat`, pick a 5090 snapshot:
@@ -63,8 +63,8 @@ End-to-end on a single RTX 5090 (driver 596.36, sm_120, 32 GB):
 | **NVFP4 prefill tok/s** | **~7,460 tok/s @ 24k** and **~5,300 tok/s @ 47k** on `rtx5090_nvfp4` (full TDP, ~580W, peak mem-BW 35%). 5–7x AutoRound. Sidesteps the 170W ceiling by routing FFN GEMMs through FlashInfer's sm_120 native FP4 tensor cores. |
 | **NVFP4 decode tok/s** | ~92 tok/s (300-token completion, MTP n=6). +25% vs AutoRound on the same hardware. |
 | **NVFP4 long-ctx coherence + needle retrieval** | PASS at 50k / 100k / 177k tokens (both needles retrieved at every depth). |
-| **NVFP4 MTP acceptance** | 81.9% @ 50k ctx (4.91/6 avg), 73.9% @ 150k ctx (4.43/6 avg) — well above the 50% degraded-weight threshold. |
-| **NVFP4 vs AutoRound coding parity** | Tied 12/12 on a 12-problem HumanEval-style slice (small slice — see caveat in [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md); confirms no catastrophic regression, does not prove long-tail parity). |
+| **NVFP4 MTP acceptance** | 81.9% @ 50k ctx (4.91/6 avg), 73.9% @ 150k ctx (4.43/6 avg), well above the 50% degraded-weight threshold. |
+| **NVFP4 vs AutoRound coding parity** | Tied 12/12 on a 12-problem HumanEval-style slice (small slice, see caveat in [`SM120_GDN_CEILING.md`](SM120_GDN_CEILING.md); confirms no catastrophic regression, does not prove long-tail parity). |
 | CUDA 13 toolkit on host | **not required**. The launcher copies torch's bundled `cudart64_13.dll`, `cublas64_13.dll`, etc. from `venv\Lib\site-packages\torch\lib\` into a writable `cuda13_shim\bin\` and points `CUDA_PATH` there so flashinfer's import-time `CDLL` succeeds. |
 
 ## What's NOT yet validated on Blackwell
@@ -79,7 +79,7 @@ not been re-tested on the 0.20 wheel that ships in the Blackwell zip:
   attribute. May or may not be fixed.
 - **TP=2 numbers**: 0.19 was ~7.5 tok/s (unusable) because we ran the
   CPU-relay patch. 0.20 ships NCCL on Windows (experimental), which
-  removes the CPU-relay floor — TP=2 numbers may be very different.
+  removes the CPU-relay floor, TP=2 numbers may be very different.
 - **MTP-on-Blackwell tuning**: the 0.19 sweep peaked at MTP n=6 ctx
   90k for 64.5 tok/s on a 3090. The 5090 has more memory bandwidth
   and a different cudagraph profile; the optimum almost certainly
@@ -140,7 +140,7 @@ caveat on quality vs AutoRound.
 NVFP4 weights. The Peutlefaire quant deliberately keeps the visual
 tower unquantized (the recipe's `ignore` list excludes
 `re:visual.*` / `re:model.visual.*`), so the vision encoder is already
-on disk — loading it is a CLI flag flip, not a different model. VRAM
+on disk, loading it is a CLI flag flip, not a different model. VRAM
 cost vs the text twin: ~2 GiB of unquantized vision-tower weights stay
 resident, plus a 16,384-token encoder cache for image features. Context
 is dropped 200k -> 180k to absorb that. Measured at boot:
@@ -189,7 +189,7 @@ historical reference for AutoRound prefix-caching behavior:
 | KV pool      | 79,968 tokens       | 94,656      | +18 %      |
 
 `windows_tools/repro_17140.py` (3 short → 24k hit → 3 short → 24k hit → 3
-short) shows decode drift +2.6 % then +2.3 % across the two long hits —
+short) shows decode drift +2.6 % then +2.3 % across the two long hits ,
 the 130 → 90 → 40 cliff does not recur. Warm-prefix TTFT on a 24 k re-hit
 drops from ~42 s cold to ~1.6 s. Short-prompt headline decode is in the
 ~125 tok/s range under bench.py methodology; the 158 tok/s table number
@@ -247,19 +247,19 @@ See [`UPGRADING.md`](UPGRADING.md) for the full updater story.
 The portable launcher cannot assume anything about what the user has
 installed system-wide. The four user environment classes are:
 
-1. **Drivers only** — most inference users. NVIDIA driver 596+, no CUDA
+1. **Drivers only**, most inference users. NVIDIA driver 596+, no CUDA
    Toolkit, no conda. The bundled cu13 shim and torch's bundled DLLs
    handle everything. This was always the design target.
-2. **System CUDA 12.x** — devs who installed CUDA 12.x for some other
+2. **System CUDA 12.x**, devs who installed CUDA 12.x for some other
    tool. The dangerous case: `C:\Program Files\NVIDIA GPU Computing
    Toolkit\CUDA\v12.4\bin\` on PATH ahead of the cu13 shim makes
    FlashInfer log `Failed to get device capability: SM 12.x requires
    CUDA >= 12.9` and silently fall back, then bake slow fp4_gemm
    tactics into vLLM's AOT compile cache. See
    internal forensic notes for the exact reproduction.
-3. **System CUDA 13.x** — devs with a CUDA 13 Toolkit installed. Worked
+3. **System CUDA 13.x**, devs with a CUDA 13 Toolkit installed. Worked
    accidentally before v1.3.2; scrubbed for uniformity now.
-4. **Conda / Mamba with `cudatoolkit`** — DLLs live under
+4. **Conda / Mamba with `cudatoolkit`**, DLLs live under
    `<env>/Library/bin` and shadow the shim the same way (2) does.
 
 **v1.3.2 hardens against all four** by replacing the additive

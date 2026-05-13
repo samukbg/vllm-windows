@@ -6,7 +6,7 @@ OUTSIDE Windows Terminal, it cannot use AttachThreadInput (no message queue).
 Instead it uses the SendInput(VK_MENU) ALT-key trick to convince Windows that
 this process just received user input, which unlocks SetForegroundWindow.
 
-Fallback: temporarily sets HWND_TOPMOST then removes it — forces Z-order
+Fallback: temporarily sets HWND_TOPMOST then removes it, forces Z-order
 even if SetForegroundWindow still returns False.
 
 Usage:  python activate_wt.py [window_title_substring]
@@ -100,7 +100,7 @@ def _force_foreground(hwnd: int) -> bool:
     if user32.GetForegroundWindow() == hwnd:
         return True
 
-    # Step 2: fake ALT key — tricks Windows into thinking we got input
+    # Step 2: fake ALT key, tricks Windows into thinking we got input
     _send_alt_key()
     time.sleep(0.02)
 
@@ -110,7 +110,7 @@ def _force_foreground(hwnd: int) -> bool:
     if user32.GetForegroundWindow() == hwnd:
         return True
 
-    # Step 4: TOPMOST toggle fallback — forces Z-order change
+    # Step 4: TOPMOST toggle fallback, forces Z-order change
     user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_FLAGS)
     user32.SetForegroundWindow(hwnd)
     user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_FLAGS)
@@ -124,7 +124,7 @@ def _force_foreground(hwnd: int) -> bool:
 def main():
     title = sys.argv[1] if len(sys.argv) > 1 else "Cursor"
 
-    # Poll briefly — wt.exe may not have finished creating the tab yet
+    # Poll briefly, wt.exe may not have finished creating the tab yet
     hwnd = None
     for _ in range(15):  # up to ~1.5 s
         hwnd = _find_wt_hwnd(title)

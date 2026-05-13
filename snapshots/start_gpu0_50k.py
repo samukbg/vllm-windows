@@ -39,8 +39,8 @@ NUM_SPEC_TOKENS = 6
 # Single-card Lorbus weight footprint: ~16.9 GB. With fp8_e5m2 KV and
 # gpu-memory-utilization=0.95 we expect ~40-60K tokens of KV. Start ctx modest
 # and grow after first successful boot.
-CTX = 50000  # GPU0 — ceiling drifts 53-63k with display load; pad heavily
-GPU_MEM_UTIL = 0.92  # GPU0 — free=22 GiB / 24, viable when display load <2.5 GiB
+CTX = 50000  # GPU0, ceiling drifts 53-63k with display load; pad heavily
+GPU_MEM_UTIL = 0.92  # GPU0, free=22 GiB / 24, viable when display load <2.5 GiB
 KV_CACHE_DTYPE = "fp8_e4m3"  # TRITON_ATTN only accepts fp8/fp8_e4m3 (not e5m2).
 MAX_NUM_BATCHED_TOKENS = 4128
 

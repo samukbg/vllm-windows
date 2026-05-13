@@ -1,5 +1,5 @@
 @echo off
-REM start_127k.bat — GPU1 mem=0.948 ctx=127k (max single-GPU MTP n=3, 350W)
+REM start_127k.bat, GPU1 mem=0.948 ctx=127k (max single-GPU MTP n=3, 350W)
 setlocal
 cd /d "%~dp0"
 set "REPO_ROOT=%~dp0.."

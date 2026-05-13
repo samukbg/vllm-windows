@@ -39,7 +39,7 @@ class NavBar(Horizontal):
     """Top-of-screen tab bar. Construct with ``NavBar(active="windows")``."""
 
     # When only one tab is configured (Linux disabled, the public-release
-    # default), there's nothing to switch between — collapse the bar to zero
+    # default), there's nothing to switch between, collapse the bar to zero
     # height. The button code stays so VLLM_WINDOWS_ENABLE_LINUX=1 still works.
     DEFAULT_CSS = """
     NavBar {
@@ -65,7 +65,7 @@ class NavBar(Horizontal):
     NavBar Button.tab-windows { color: #58a6ff; }
     NavBar Button.tab-linux   { color: #d29922; }
 
-    /* Kill Button's :focus styling — clicks shouldn't change the look */
+    /* Kill Button's :focus styling, clicks shouldn't change the look */
     NavBar Button:focus {
         text-style: none;
         background-tint: transparent;
@@ -123,7 +123,7 @@ class NavBar(Horizontal):
         border-top: tall #0d1117;
         border-bottom: heavy #d29922 !important;
     }
-    /* Active-tab .-active (clicking the already-selected tab) — keep it stable */
+    /* Active-tab .-active (clicking the already-selected tab), keep it stable */
     NavBar Button.tab-windows.tab-active.-active {
         border: none;
         border-top: tall #0d1117;

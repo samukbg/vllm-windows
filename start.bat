@@ -1,6 +1,6 @@
 @echo off
 REM ===================================================================
-REM  qwen3.6-windows-server — top-level entrypoint.
+REM  qwen3.6-windows-server, top-level entrypoint.
 REM
 REM  Delegates to launcher\start.bat. Both files are intentionally
 REM  available so a user can double-click either one and get the same

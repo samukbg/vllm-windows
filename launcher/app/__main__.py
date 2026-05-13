@@ -86,7 +86,7 @@ def main() -> None:
         return
 
     # In headless / snapshot / setup-only modes the user is running
-    # unattended — bail loudly on missing prereqs instead of dropping to
+    # unattended, bail loudly on missing prereqs instead of dropping to
     # the TUI fallback.
     headless = args.headless or bool(args.snapshot) or args.setup_only
 

@@ -118,7 +118,7 @@ def main() -> int:
         # Warmup small request to ensure metrics path is alive
         before = fetch_metrics(args.port, args.host)
         if not before:
-            print("ERROR: /metrics returned no spec_decode keys — is MTP enabled?")
+            print("ERROR: /metrics returned no spec_decode keys, is MTP enabled?")
             return 1
         info = chat(args.port, args.model, prompt, max_tokens=200, host=args.host)
         after = fetch_metrics(args.port, args.host)

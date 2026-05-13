@@ -68,7 +68,7 @@ _RE_MTP = re.compile(r'num_speculative_tokens"\s*:\s*(\d+)')
 
 
 def _logs_dir() -> Path:
-    """Mirror snapshots/_common._resolve_logs_dir() — write-tolerant."""
+    """Mirror snapshots/_common._resolve_logs_dir(), write-tolerant."""
     env = os.environ.get("VLLM_WINDOWS_LOGS")
     if env:
         return Path(env)
@@ -107,13 +107,13 @@ def _read_manifests() -> list[dict]:
 
 def _port_listening(port: int, host: str = "127.0.0.1",
                     timeout: float = 1.5) -> bool:
-    """Locale-free port check — connect attempt, no netstat parsing.
+    """Locale-free port check, connect attempt, no netstat parsing.
 
     Default timeout is generous (1.5s) because vLLM holds the bound port
-    while compiling kernels at boot — listen() has been called but the
+    while compiling kernels at boot, listen() has been called but the
     accept() loop isn't running yet, so a stingy timeout reports the
     port as 'not listening' even though it's clearly owned. We don't
-    need a fast probe here — `detect_running` runs at 2s intervals.
+    need a fast probe here, `detect_running` runs at 2s intervals.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(timeout)
@@ -133,7 +133,7 @@ def _pid_alive(pid: int) -> bool:
             creationflags=CREATE_NO_WINDOW,
         )
         # When PID exists, stdout has a CSV row starting with a quoted image name.
-        # When absent, stdout is "INFO: No tasks..." (locale text varies) — but
+        # When absent, stdout is "INFO: No tasks..." (locale text varies), but
         # the row form is quote-prefixed, locale-stable.
         return bool((r.stdout or "").lstrip().startswith('"'))
     except Exception:
@@ -153,7 +153,7 @@ def detect_running(ports: list[int], configs) -> dict[str, RunningProc]:
     names the snapshot_id (== bat/py basename) authoritatively, so port
     collisions (start_speed/start_127k/start_mtp4 all on 5001) resolve
     correctly. We then verify the port is actually listening and the
-    wrapper pid is still alive — both via locale-free probes (no netstat
+    wrapper pid is still alive, both via locale-free probes (no netstat
     "LISTENING" parse, no Win32_Process WMI).
 
     Fallback: legacy port-only match for processes started before the
@@ -172,7 +172,7 @@ def detect_running(ports: list[int], configs) -> dict[str, RunningProc]:
     # work and a quick connect() probe times out. Killing the manifest in
     # that window flips the dashboard back to the legacy port-only
     # fallback and lights the wrong card. Conversely, the wrapper python
-    # is reliably alive throughout the snapshot's lifetime — it's the
+    # is reliably alive throughout the snapshot's lifetime, it's the
     # process holding the vllm subprocess open and tee'ing its log.
     by_bat = {_bat_basename(c): c for c in configs}
     for mf in _read_manifests():
@@ -183,7 +183,7 @@ def detect_running(ports: list[int], configs) -> dict[str, RunningProc]:
         port_up = _port_listening(port)
         wrapper_up = bool(wrapper_pid) and _pid_alive(wrapper_pid)
         if not port_up and not wrapper_up:
-            # Both signals say the snapshot is gone — safe to GC.
+            # Both signals say the snapshot is gone, safe to GC.
             try: Path(mf["__path__"]).unlink()
             except (OSError, KeyError): pass
             continue
@@ -193,7 +193,7 @@ def detect_running(ports: list[int], configs) -> dict[str, RunningProc]:
         if cfg is None:
             continue  # manifest references an unknown snapshot
 
-        # Resolve the netstat pid for kill_pid — fall back to wrapper_pid.
+        # Resolve the netstat pid for kill_pid, fall back to wrapper_pid.
         pid = wrapper_pid
         np = _netstat_pids([port]).get(port)
         if np:
@@ -247,8 +247,8 @@ def probe_ready(port: int, host: str = "127.0.0.1", timeout: float = 1.5) -> boo
     Why log-grep instead of HTTP: TUN-mode VPN clients (sing-box / Nekobox
     TUN whitelist / Clash TUN / v2rayN TUN, etc.) intercept TCP at the
     network-adapter layer, *below* urllib. Even with
-    urllib.request.ProxyHandler({}) — which v1.3.5 added to bypass IE/
-    registry HTTP proxies — the kernel still routes 127.0.0.1 traffic
+    urllib.request.ProxyHandler({}), which v1.3.5 added to bypass IE/
+    registry HTTP proxies, the kernel still routes 127.0.0.1 traffic
     through the TUN adapter when the calling python.exe is in the TUN
     whitelist (or when sing-box's `strict_route` covers 127.0.0.0/8). The
     HTTP probe then hangs or returns the wrong content, the launcher
@@ -260,7 +260,7 @@ def probe_ready(port: int, host: str = "127.0.0.1", timeout: float = 1.5) -> boo
     The host / timeout params are accepted for API compatibility with
     callers and unused.
     """
-    del host, timeout  # unused — kept for API stability
+    del host, timeout  # unused, kept for API stability
     log = _logs_dir() / f"vllm_server.{port}.log"
     if not log.is_file():
         return False
@@ -279,7 +279,7 @@ def probe_ready(port: int, host: str = "127.0.0.1", timeout: float = 1.5) -> boo
 
 
 def clear_manifest_for_port(port: int) -> None:
-    """Remove <logs>/runtime/<port>.json — called after a successful kill."""
+    """Remove <logs>/runtime/<port>.json, called after a successful kill."""
     try:
         (_manifest_dir() / f"{port}.json").unlink()
     except FileNotFoundError:
@@ -289,7 +289,7 @@ def clear_manifest_for_port(port: int) -> None:
 
 
 def _wt_exe() -> str | None:
-    """Locate Windows Terminal — prefer bundled portable, then system, then PATH."""
+    """Locate Windows Terminal, prefer bundled portable, then system, then PATH."""
     import os, shutil
     root = os.environ.get("CC_PORTABLE_ROOT")
     candidates = []

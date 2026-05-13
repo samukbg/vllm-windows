@@ -1,5 +1,5 @@
 @echo off
-REM start_mtp4.bat — GPU1 MTP n=4 ctx=120k mem=0.948 — best decode TPS (~58)
+REM start_mtp4.bat, GPU1 MTP n=4 ctx=120k mem=0.948, best decode TPS (~58)
 setlocal
 cd /d "%~dp0"
 set "REPO_ROOT=%~dp0.."

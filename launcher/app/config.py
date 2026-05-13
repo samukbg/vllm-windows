@@ -119,9 +119,9 @@ def _resolve_repo_root() -> Path:
 def _resolve_env() -> dict[str, str]:
     """Build the placeholder lookup table.
 
-    SNAPSHOTS_DIR — repo_root/snapshots, override via $VLLM_WINDOWS_SNAPSHOTS.
-    MODEL_DIR     — $VLLM_MODEL_DIR (set by model_setup.ensure_model) or default.
-    LOG_DIR       — $VLLM_WINDOWS_LOGS or writable_root/logs (auto-fallback to
+    SNAPSHOTS_DIR, repo_root/snapshots, override via $VLLM_WINDOWS_SNAPSHOTS.
+    MODEL_DIR    , $VLLM_MODEL_DIR (set by model_setup.ensure_model) or default.
+    LOG_DIR      , $VLLM_WINDOWS_LOGS or writable_root/logs (auto-fallback to
                     %LocalAppData%\\qwen36-windows-server\\logs when install
                     dir is read-only, e.g. under Program Files).
     """
@@ -129,7 +129,7 @@ def _resolve_env() -> dict[str, str]:
     root = _resolve_repo_root()
     return {
         "SNAPSHOTS_DIR": os.environ.get("VLLM_WINDOWS_SNAPSHOTS", str(root / "snapshots")),
-        "MODEL_DIR":     os.environ.get("VLLM_MODEL_DIR",         str(_paths.default_model_dir())),
+        "MODEL_DIR":     os.environ.get("VLLM_MODEL_DIR", str(_paths.default_model_dir())),
         "LOG_DIR":       str(_paths.logs_dir()),
         "REPO_ROOT":     str(root),
     }

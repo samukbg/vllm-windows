@@ -2,7 +2,7 @@
 
 The launcher's CRUD edits a small set of *editable constants* in each
 snapshot's start_*.py file. Everything else (env overlay, args list,
-manifest write) is structural and should not be touched from the UI —
+manifest write) is structural and should not be touched from the UI ,
 those concerns live in _common.py and the snapshot template.
 
 Editable constants (single-source-of-truth list):
@@ -103,7 +103,7 @@ def update_py_constants(py_path: Path, values: dict[str, Any]) -> list[str]:
     """Rewrite editable constants in `py_path` in place.
 
     Returns a list of human-readable change descriptions for status display.
-    Constants not present in the file are appended after the imports block —
+    Constants not present in the file are appended after the imports block ,
     this lets a simple .py without USE_MTP still gain it on first edit.
     """
     src = py_path.read_text(encoding="utf-8")
@@ -130,7 +130,7 @@ def update_py_constants(py_path: Path, values: dict[str, Any]) -> list[str]:
             changes.append(f"{name}: {old_repr} -> {new_repr}")
         else:
             # Constant doesn't exist in this file. Skip silently rather than
-            # injecting random globals — most snapshots that lack USE_MTP
+            # injecting random globals, most snapshots that lack USE_MTP
             # don't want it. The form value is ignored for missing fields.
             continue
 
@@ -142,7 +142,7 @@ def read_py_constants(py_path: Path) -> dict[str, Any]:
     """Parse current values of editable constants from a .py file.
 
     Used by the form's Revert button + initial load. Missing constants
-    return None — the form treats None as 'not applicable'.
+    return None, the form treats None as 'not applicable'.
     """
     out: dict[str, Any] = {}
     if not py_path.exists():
@@ -227,7 +227,7 @@ def _ordered_config(c: dict) -> dict:
 
 
 def _unsubstitute_paths(s: str, env: dict[str, str]) -> str:
-    """Reverse of _expand_placeholders for one string — turn absolute path
+    """Reverse of _expand_placeholders for one string, turn absolute path
     fragments back into ${SNAPSHOTS_DIR}\\... so the file reads cleanly."""
     if not isinstance(s, str):
         return s

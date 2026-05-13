@@ -1,5 +1,5 @@
 @echo off
-REM start_speed.bat — GPU1 MTP n=6 ctx=90k mem=0.948 350W — peak decode ~64.5 tok/s
+REM start_speed.bat, GPU1 MTP n=6 ctx=90k mem=0.948 350W, peak decode ~64.5 tok/s
 setlocal
 cd /d "%~dp0"
 set "REPO_ROOT=%~dp0.."

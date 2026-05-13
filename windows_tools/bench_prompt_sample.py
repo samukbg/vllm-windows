@@ -1,6 +1,6 @@
-# bench_prompt_sample.py — long-prompt fixture for bench_summarize.py
+# bench_prompt_sample.py, long-prompt fixture for bench_summarize.py
 #
-# This file is a verbatim copy of CPython 3.12's Lib/inspect.py — a ~130 KB,
+# This file is a verbatim copy of CPython 3.12's Lib/inspect.py, a ~130 KB,
 # ~3433-line, ~25-30 k-token Python source file used as the standardized
 # long-prompt benchmark fixture. We vendor it (rather than reach into the
 # user's Python install) so the bench is reproducible from a stock portable
@@ -1860,7 +1860,7 @@ def _shadowed_dict(klass):
 
 def getattr_static(obj, attr, default=_sentinel):
     """Retrieve attributes without triggering dynamic lookup via the
-       descriptor protocol,  __getattr__ or __getattribute__.
+       descriptor protocol, __getattr__ or __getattribute__.
 
        Note: this function may not be able to retrieve all attributes
        that getattr can fetch (like dynamically created attributes)

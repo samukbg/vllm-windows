@@ -109,7 +109,7 @@ class Dashboard(Screen):
                 gpu_names = detected_gpu_names()
                 arch_label = ARCH_LABEL.get(detected, "Universal")
 
-                # Detection banner — tells the user what the launcher
+                # Detection banner, tells the user what the launcher
                 # picked up from nvidia-smi, so the snapshot ordering
                 # below isn't a mystery.
                 if gpu_names:
@@ -121,7 +121,7 @@ class Dashboard(Screen):
                 else:
                     banner = (
                         "[#8b949e]GPU detection:[/] "
-                        "[#d29922]nvidia-smi not available — showing all snapshots[/]"
+                        "[#d29922]nvidia-smi not available, showing all snapshots[/]"
                     )
                 yield Static(banner, classes="arch-detect-line", id="arch-banner")
 

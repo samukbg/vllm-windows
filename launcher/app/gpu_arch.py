@@ -2,12 +2,12 @@
 
 Used by the dashboard to order configuration cards so that snapshots
 matching the host's GPU architecture appear first. Pure stdlib +
-``nvidia-smi`` shell-out — no torch/cuda dependency, safe to call before
+``nvidia-smi`` shell-out, no torch/cuda dependency, safe to call before
 the runtime is installed.
 
 Buckets:
   - ``"blackwell"`` for sm_120 (RTX 5060/5070/5080/5090 etc.)
-  - ``"ampere"``    for sm_86/sm_89 (RTX 30xx and 40xx — same wheel)
+  - ``"ampere"``    for sm_86/sm_89 (RTX 30xx and 40xx, same wheel)
   - ``"unknown"``   when nvidia-smi is missing or the model is not
                     recognised. Treated as "show everything in default
                     order" by the dashboard.
@@ -37,7 +37,7 @@ _BLACKWELL_PREFIXES = (
 )
 
 # Ampere (sm_86) AND Ada (sm_89) share the same Windows wheel in this
-# project — both labelled "ampere" for snapshot-grouping purposes.
+# project, both labelled "ampere" for snapshot-grouping purposes.
 _AMPERE_PREFIXES = (
     "RTX 3050",
     "RTX 3060",
@@ -48,7 +48,7 @@ _AMPERE_PREFIXES = (
     "A40",
     "A6000",
     "RTX A",
-    # Ada / 40-series — uses the same Ampere zip in this project
+    # Ada / 40-series, uses the same Ampere zip in this project
     "RTX 4060",
     "RTX 4070",
     "RTX 4080",
@@ -88,7 +88,7 @@ def _query_nvidia_smi() -> list[str]:
 def detect_arch() -> str:
     """Detect the local GPU architecture bucket.
 
-    Honors ``$VLLM_WINDOWS_GPU_ARCH`` for testing — set to ``blackwell``,
+    Honors ``$VLLM_WINDOWS_GPU_ARCH`` for testing, set to ``blackwell``,
     ``ampere``, or ``unknown`` to override autodetection. Falls back to
     ``"unknown"`` whenever nvidia-smi is missing or the GPU model cannot
     be classified.
@@ -145,7 +145,7 @@ ARCH_LABEL = {
     ARCH_UNKNOWN:   "Universal",
 }
 ARCH_COLOR = {
-    ARCH_BLACKWELL: "#7fb3ff",   # cool blue
-    ARCH_AMPERE:    "#ffbb7f",   # warm orange
-    ARCH_UNKNOWN:   "#8b949e",   # neutral
+    ARCH_BLACKWELL: "#7fb3ff", # cool blue
+    ARCH_AMPERE:    "#ffbb7f", # warm orange
+    ARCH_UNKNOWN:   "#8b949e", # neutral
 }

@@ -1,9 +1,9 @@
 @echo off
 REM ===================================================================
-REM  vllm-windows launcher — portable Windows TUI
+REM  vllm-windows launcher, portable Windows TUI
 REM
 REM  This .bat is the only thing you need to run. It uses the embeddable
-REM  Python that ships next to it (..\python\) — no pip install, no
+REM  Python that ships next to it (..\python\), no pip install, no
 REM  conda, no admin, no internet required.
 REM
 REM  Note: avoids parenthesized IF blocks because the install path may
@@ -35,11 +35,11 @@ REM so the build script also writes "..\launcher" into the _pth file.
 REM We still set PYTHONPATH for non-embedded fallback (developer venv).
 set "PYTHONPATH=%APP_ROOT%"
 
-REM Open inside Windows Terminal if available — the launcher's TUI looks
+REM Open inside Windows Terminal if available, the launcher's TUI looks
 REM much better there than in legacy cmd. Skip if already inside WT, or
 REM if the caller is running in headless / scripted mode (--headless,
 REM --snapshot, --auto-download, --setup-only). Relaunching into a new WT
-REM window would detach from the parent shell and break automation —
+REM window would detach from the parent shell and break automation ,
 REM the parent process exits 0 with no captured output and the user is
 REM left wondering what happened. Detect common non-interactive parents
 REM (CI runners, git-bash, MSYS, anywhere TERM is set) and stay in-place.

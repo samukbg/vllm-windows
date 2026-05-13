@@ -156,7 +156,7 @@ class DetailScreen(Screen):
     }
     #status-banner.idle    { background: #161b22; color: #8b949e; border-left: thick #30363d; }
     #status-banner.running { background: #11202f; color: #3fb950; border-left: thick #3fb950; }
-    /* Loading is the state users complain about missing — make it impossible
+    /* Loading is the state users complain about missing, make it impossible
        to overlook: tall block, bold amber text, thick border on both sides. */
     #status-banner.loading {
         background: #2d220a;
@@ -219,11 +219,11 @@ class DetailScreen(Screen):
     def _state(self) -> str:
         """Current snapshot state from the app's perspective.
 
-        idle    — no manifest, no optimistic-load flag → Load enabled
-        loading — manifest exists but /v1/models hasn't answered yet, OR the
+        idle   , no manifest, no optimistic-load flag → Load enabled
+        loading, manifest exists but /v1/models hasn't answered yet, OR the
                   user just clicked Load and the manifest hasn't appeared in
                   the next poll → all action buttons disabled
-        running — manifest exists AND /v1/models returned 200 → Unload+Test
+        running, manifest exists AND /v1/models returned 200 → Unload+Test
         """
         cid = self.cfg.id
         app = self.app
@@ -245,14 +245,14 @@ class DetailScreen(Screen):
             unload_btn = self.query_one("#unload-btn", Button)
             test_btn = self.query_one("#test-btn", Button)
         except Exception:
-            return  # widgets not mounted yet — on_mount will rerun
+            return  # widgets not mounted yet, on_mount will rerun
 
         cfg = self.cfg
         state = self._state()
         blocked = (cfg.status == "blocked")
 
         if state == "running":
-            banner.update(f"  ● RUNNING — port {cfg.port} (API ready)")
+            banner.update(f"  ● RUNNING, port {cfg.port} (API ready)")
             banner.set_classes("running")
             # Already loaded → Load disabled, Unload+Test enabled.
             load_btn.disabled = True
@@ -261,7 +261,7 @@ class DetailScreen(Screen):
         elif state == "loading":
             banner.update(
                 f"[b #ffbb47]⏳  LOADING vLLM on port {cfg.port}...[/]\n"
-                f"[#d29922]This takes 60-120 seconds — compiling kernels + loading weights.[/]\n"
+                f"[#d29922]This takes 60-120 seconds, compiling kernels + loading weights.[/]\n"
                 f"[#8b949e]The new console window shows live progress. "
                 f"Buttons re-enable once /v1/models responds.[/]"
             )
@@ -291,8 +291,8 @@ class DetailScreen(Screen):
             ("mem-util", f"{cfg.mem_util}"),
             ("ctx (max-model-len)", f"{cfg.ctx:,}"),
             ("port", str(cfg.port)),
-            ("MTP n", "—" if cfg.mtp_n is None else str(cfg.mtp_n)),
-            ("draft-model n", "—" if cfg.draft_model_n is None else str(cfg.draft_model_n)),
+            ("MTP n", "," if cfg.mtp_n is None else str(cfg.mtp_n)),
+            ("draft-model n", "," if cfg.draft_model_n is None else str(cfg.draft_model_n)),
             ("Power cap", f"{cfg.power_cap_w or sd.get('power_cap_w', '?')} W"),
         ]
         shared_rows = [
@@ -320,7 +320,7 @@ class DetailScreen(Screen):
         ]:
             if v is not None:
                 bench_rows.append((k, str(v)))
-        bench = _kv(bench_rows) if bench_rows else "  [#8b949e]—[/]"
+        bench = _kv(bench_rows) if bench_rows else "  [#8b949e],[/]"
 
         sweep_lines: list[str] = []
         for r in self.bundle.mtp_sweep.get("rows", []):
@@ -330,7 +330,7 @@ class DetailScreen(Screen):
                 f"[#3fb950]{r['decode_tps']:>5} t/s[/]{mark}"
             )
 
-        notes = (cfg.notes or "—").rstrip()
+        notes = (cfg.notes or ",").rstrip()
 
         return (
             f"[b #58a6ff]Benchmarks[/]\n"
@@ -345,7 +345,7 @@ class DetailScreen(Screen):
         self.app.pop_screen()
 
     def action_load(self) -> None:
-        # Honor the same gating the buttons enforce — the keyboard shortcut
+        # Honor the same gating the buttons enforce, the keyboard shortcut
         # must not bypass the disabled state (e.g. pressing 'l' while the
         # snapshot is RUNNING should be a no-op, not a duplicate launch).
         if self._state() != "idle" or self.cfg.status == "blocked":
@@ -364,7 +364,7 @@ class DetailScreen(Screen):
 
     def action_edit(self) -> None:
         # Pop back to the dashboard first so the manager's on-dismiss
-        # dashboard rebuild lands on a clean stack — otherwise we'd return
+        # dashboard rebuild lands on a clean stack, otherwise we'd return
         # from the manager into a stale DetailScreen referencing a possibly
         # renamed/deleted cfg.
         self.app.pop_screen()
@@ -486,7 +486,7 @@ class DetailScreen(Screen):
                 )
                 return
 
-            def _fmt(v, spec: str, dash: str = "—") -> str:
+            def _fmt(v, spec: str, dash: str = ",") -> str:
                 if v is None:
                     return dash
                 try:
@@ -510,7 +510,7 @@ class DetailScreen(Screen):
                 f"[#8b949e]decode window:[/]     {decode_window}s\n"
                 f"[#8b949e]total wall:[/]        {total}s\n\n"
                 f"[b]Response preview:[/]\n{preview}\n\n"
-                f"[#6e7681]Same prompt and metric as windows_tools\\bench.py — "
+                f"[#6e7681]Same prompt and metric as windows_tools\\bench.py, "
                 f"compare directly against published numbers.[/]"
             )
             self.app.call_from_thread(

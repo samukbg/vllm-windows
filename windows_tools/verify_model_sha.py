@@ -27,7 +27,7 @@ def hf_etag(repo: str, filename: str, revision: str = "main") -> str | None:
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
             for k, v in r.headers.items():
-                # Strict start-of-line match — header listings can mention
+                # Strict start-of-line match, header listings can mention
                 # 'X-Linked-Etag' as a value of access-control-expose-headers.
                 if k.lower() == "x-linked-etag":
                     return v.strip().strip('"')
@@ -89,9 +89,9 @@ def main() -> int:
         if not ok:
             bad += 1
     if bad:
-        print(f"\nFAIL — {bad} shard(s) corrupt; re-download.")
+        print(f"\nFAIL, {bad} shard(s) corrupt; re-download.")
         return 1
-    print("\nOK — all shards match upstream.")
+    print("\nOK, all shards match upstream.")
     return 0
 
 

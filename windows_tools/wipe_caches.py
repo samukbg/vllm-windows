@@ -3,26 +3,26 @@ NVFP4 prefill regression documented in
 ``_local/CACHE_POISON_INCIDENT_2026-05-07.md``.
 
 The fingerprint for poisoning: prefill ~750 tok/s on a 47k NVFP4 prompt,
-power 200-270W, mem-BW% near 0 — i.e. silicon idle despite NVFP4 being
+power 200-270W, mem-BW% near 0, i.e. silicon idle despite NVFP4 being
 loaded. First-line response is to run this script.
 
 By default everything is *moved* to a sibling ``.bak.<TIMESTAMP>`` dir
 so a forensic comparison is possible. ``--no-backup`` deletes outright.
 ``--dry-run`` reports sizes without touching anything.
 
-Caches (in priority order — the first one is the load-bearing fix):
+Caches (in priority order, the first one is the load-bearing fix):
 
-1. ``%USERPROFILE%\\.cache\\vllm\\`` — vLLM torch-inductor AOT compile
+1. ``%USERPROFILE%\\.cache\\vllm\\``, vLLM torch-inductor AOT compile
    cache (typically multi-GB after sustained use). Compiled graphs hold
    baked-in references to whichever FlashInfer tactic the autotuner
    picked at graph-compile time. If those picks were made under a
    polluted CUDA env, every later boot inherits the slow choices.
-2. ``%LOCALAPPDATA%\\Temp\\torchinductor_<user>\\`` — torch's separate
+2. ``%LOCALAPPDATA%\\Temp\\torchinductor_<user>\\``, torch's separate
    temp inductor cache. Nuked together with #1.
-3. ``%USERPROFILE%\\.cache\\torch\\`` — torch's general kernel cache.
-4. ``%USERPROFILE%\\.cache\\flashinfer\\`` — flashinfer's per-shape
+3. ``%USERPROFILE%\\.cache\\torch\\``, torch's general kernel cache.
+4. ``%USERPROFILE%\\.cache\\flashinfer\\``, flashinfer's per-shape
    autotune scoreboard. Wiping this alone never fixes the regression
-   because the vLLM AOT cache hits before flashinfer is reconsulted —
+   because the vLLM AOT cache hits before flashinfer is reconsulted ,
    but wipe it together with #1 so the re-autotune produces fresh picks.
 """
 from __future__ import annotations
@@ -191,7 +191,7 @@ def main() -> int:
     print("\nNext steps:")
     print("  1. python snapshots/stop_vllm.py        # if a server is still running")
     print("  2. python snapshots/start_5090_nvfp4.py # cold rebuild ~11 min")
-    print("  3. re-bench at 47k unique prompt — expect 5,200+ tok/s, ~580W peak.")
+    print("  3. re-bench at 47k unique prompt, expect 5,200+ tok/s, ~580W peak.")
     return 0
 
 

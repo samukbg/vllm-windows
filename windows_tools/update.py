@@ -235,7 +235,7 @@ def _rmtree_best_effort(target: Path, root: Path) -> bool:
     child file or a Defender-held handle leaves the directory partially
     populated without bubbling up). We retry a few times, killing any
     surviving install processes between attempts, but if some residue
-    remains we return False rather than raising — the caller pairs this with
+    remains we return False rather than raising, the caller pairs this with
     `shutil.copytree(..., dirs_exist_ok=True)` so a partial-clean state
     still yields a working post-update tree.
 
@@ -509,7 +509,7 @@ def write_and_spawn_finalizer(
         stderr=subprocess.DEVNULL,
         close_fds=True,
     )
-    print(f"[update] finalize.bat scheduled — python\\ will swap in once "
+    print(f"[update] finalize.bat scheduled, python\\ will swap in once "
           f"this process exits.")
 
 

@@ -40,7 +40,7 @@ NUM_SPEC_TOKENS = 6
 # gpu-memory-utilization=0.95 we expect ~40-60K tokens of KV. Start ctx modest
 # and grow after first successful boot.
 CTX = 90000
-GPU_MEM_UTIL = 0.948  # GPU1 — vLLM sees free=22.76 GiB after CUDA init → 0.948 ceiling
+GPU_MEM_UTIL = 0.948  # GPU1, vLLM sees free=22.76 GiB after CUDA init → 0.948 ceiling
 KV_CACHE_DTYPE = "fp8_e4m3"  # TRITON_ATTN only accepts fp8/fp8_e4m3 (not e5m2).
 MAX_NUM_BATCHED_TOKENS = 4128
 

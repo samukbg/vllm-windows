@@ -84,7 +84,7 @@ jobs:
           fi
           # Both wheels are mandatory unless a manual --wheel_url override was given
           # (override is single-variant Ampere by design). Releases must ship BOTH
-          # zips — historically the Blackwell zip was uploaded by hand and CI
+          # zips, historically the Blackwell zip was uploaded by hand and CI
           # silently produced Ampere-only when the cu13 wheel went missing
           # upstream (see v1.2.2 incident). Fail loudly instead.
           if [ -n "$override" ]; then
@@ -243,7 +243,7 @@ jobs:
           else
             gh release create "$REL" \
               --repo "$GITHUB_REPOSITORY" \
-              --title "qwen3.6-windows-server $REL — portable Windows launcher" \
+              --title "qwen3.6-windows-server $REL, portable Windows launcher" \
               "${NOTES_ARGS[@]}" \
               dist/*.zip dist/SHA256SUMS.txt
           fi

@@ -55,11 +55,11 @@ the system disk on either rig.
 - Single 3090 / 4090, but see the display-attached caveat below
 - A6000 / A40 / data-centre Ampere, in theory; nobody has tested
 
-## RTX 50-series (Blackwell, sm_120) — supported via the Blackwell zip
+## RTX 50-series (Blackwell, sm_120), supported via the Blackwell zip
 
 We ship two release zips. The default
 `qwen3.6-windows-server-portable-x64.zip` (Ampere/Ada) bundles
-`vllm-0.19.0+devnen.3` against CUDA 12.6 / PyTorch cu126 — kernels go up
+`vllm-0.19.0+devnen.3` against CUDA 12.6 / PyTorch cu126, kernels go up
 to sm_90, so on RTX 5060 / 5070 / 5080 / 5090 it would fail at boot with
 `cudaErrorNoKernelImageForDevice`. **Use
 `qwen3.6-windows-server-portable-x64-blackwell.zip` for any 50-series
@@ -85,7 +85,7 @@ Verified end-to-end on a single RTX 5090 (driver 596.36, sm_120) on
   default path there. The `scalar_types.int4` bug previously reported
   on older vLLM versions is resolved in 0.20.0. Marlin selects
   `MarlinLinearKernel` for `GPTQMarlinLinearMethod` on first load.
-- CUDA 13 toolkit is **not** required on the user's machine — the
+- CUDA 13 toolkit is **not** required on the user's machine, the
   launcher copies `cudart64_13.dll`, `cublas64_13.dll`, etc. from
   torch's `site-packages/torch/lib/` into a writable
   `cuda13_shim/bin/` and points `CUDA_PATH` at it so flashinfer's
@@ -117,7 +117,7 @@ vLLM 0.20.0 hardcodes `data_parallel_rpc_port=29550` which leaks
 across orphaned engine cores; snapshots in this project pass a
 randomised `--data-parallel-rpc-port` to dodge the leak.
 
-NCCL TP/PP on Windows is experimental in 0.20.0 — the multi-card
+NCCL TP/PP on Windows is experimental in 0.20.0, the multi-card
 snapshots in the Blackwell zip are still the existing
 `start_pp2_160k` path. We have no multi-card 5090 box, so re-bench
 multi-GPU on the Blackwell zip on a 2× 3090 host before relying on it.

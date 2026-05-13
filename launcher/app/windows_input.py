@@ -40,7 +40,7 @@ Textual 8.2+ already implements: click-to-position, drag-to-select, Shift+arrow
 selection, Ctrl+Shift+arrow word-selection, Shift+Home/End, Ctrl+C/X/V,
 Backspace/Delete. This subclass adds the rest and rebinds ``Ctrl+A`` to
 ``select_all`` (the parent's ``home,ctrl+a`` entry is overridden because
-subclass BINDINGS take precedence per-key — see ``DOMNode._merge_bindings``).
+subclass BINDINGS take precedence per-key, see ``DOMNode._merge_bindings``).
 
 Undo/redo design
 ----------------
@@ -86,7 +86,7 @@ class WindowsInput(Input):
     # triple-click need to talk to. Leaving ``ALLOW_SELECT`` at the inherited
     # default of True causes ``Widget._on_click`` (widget.py:4693) to fire
     # ``select_container.text_select_all()`` on a chain==3 click, which
-    # highlights every sibling in the nearest scrollable ancestor — labels,
+    # highlights every sibling in the nearest scrollable ancestor, labels,
     # other Input fields, the whole row. Disabling it confines triple-click to
     # the input's own contents, which is what users expect.
     ALLOW_SELECT: ClassVar[bool] = False
@@ -129,7 +129,7 @@ class WindowsInput(Input):
         into a single undo entry so a run of typed characters undoes as a
         unit, matching Notepad / VS / WPF behavior. Any other op forces a
         new entry, which is also why cursor navigation flips ``_last_op``
-        to ``"nav"`` — it breaks the typing group without itself recording.
+        to ``"nav"``, it breaks the typing group without itself recording.
         """
         if self._suspend_history:
             return
@@ -179,8 +179,8 @@ class WindowsInput(Input):
             await super()._on_key(event)
             return
         # Cursor navigation breaks the typing group so the next character
-        # typed starts its own undo entry. We don't record here — the move
-        # itself isn't a mutating op — but flipping _last_op is enough.
+        # typed starts its own undo entry. We don't record here, the move
+        # itself isn't a mutating op, but flipping _last_op is enough.
         if event.key in {
             "left", "right", "up", "down",
             "home", "end",

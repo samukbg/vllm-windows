@@ -1,10 +1,10 @@
 """Launch vLLM serving Qwen3.6-27B (Peutlefaire NVFP4) on a single RTX 5090.
 
-EXPERIMENTAL — NVFP4 prefill-ceiling test.
+EXPERIMENTAL, NVFP4 prefill-ceiling test.
 
 Background: AutoRound INT4 prefill on the 5090 hits a 170W ceiling because
 GDN kernels fall back to FLA Triton (FlashInfer GDN paths are sm_90a or
-sm_100a only — neither maps to consumer Blackwell sm_120). NVFP4 weights
+sm_100a only, neither maps to consumer Blackwell sm_120). NVFP4 weights
 route the FFN GEMMs and non-GDN attention through FlashInfer's native
 sm_120 FP4 tensor-core path (the one wired via is_sm120a_supported in
 flashinfer/utils.py). GDN layers still hit the same ceiling for their
@@ -115,7 +115,7 @@ def main() -> int:
     # Verify FlashInfer can dispatch to sm_120a under THIS env, before
     # we spend ~11 minutes warming up the model. Hard-exits on failure.
     # VENV is either a dev venv (python in Scripts/) or the embedded
-    # interpreter (python at root) — try both.
+    # interpreter (python at root), try both.
     _probe_py = VENV / "Scripts" / "python.exe"
     if not _probe_py.exists():
         _probe_py = VENV / "python.exe"
@@ -132,7 +132,7 @@ def main() -> int:
     env["VLLM_SLEEP_WHEN_IDLE"] = "1"
     env["VLLM_ENABLE_CUDAGRAPH_GC"] = "1"
     env["VLLM_ALLOW_LONG_MAX_MODEL_LEN"] = "1"
-    # NB: VLLM_MARLIN_USE_ATOMIC_ADD removed — Marlin is the AutoRound INT4
+    # NB: VLLM_MARLIN_USE_ATOMIC_ADD removed, Marlin is the AutoRound INT4
     # path, not used for NVFP4. Compressed-tensors NVFP4 routes through
     # FlashInfer FP4 kernels.
     env["RAY_memory_monitor_refresh_ms"] = "0"
@@ -190,7 +190,7 @@ def main() -> int:
     print("=" * 60)
     print("[NOTE] FlashInfer will run 'Tuning fp4_gemm' MANY times during warmup.")
     print("       Each 0/13 -> 13/13 cycle is a DIFFERENT GEMM shape (batch size,")
-    print("       MTP draft length, prefill chunk) — not a loop. Expect 3-8 min")
+    print("       MTP draft length, prefill chunk), not a loop. Expect 3-8 min")
     print("       of autotuning before 'Uvicorn running on http://0.0.0.0:%d'." % PORT)
     print("       Do NOT kill the process mid-autotune; interrupting restarts it.")
     print("=" * 60)

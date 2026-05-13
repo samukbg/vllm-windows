@@ -198,7 +198,7 @@ def chat(port: int, model: str, prompt: str, host: str = "127.0.0.1") -> str:
             {"role": "system", "content": "You are a precise coding assistant. Output only Python code, no markdown fences, no commentary."},
             {"role": "user", "content": prompt},
         ],
-        "max_tokens": 3000,  # generous: thinking eats budget, then code
+        "max_tokens": 3000, # generous: thinking eats budget, then code
         "temperature": 0,
     }
     data = json.dumps(body).encode("utf-8")
@@ -293,7 +293,7 @@ def main() -> int:
 
     total_s = time.time() - t0
     pass_pct = 100 * pass_count / len(PROBLEMS)
-    print(f"\n=== {args.label} pass@1 = {pass_count}/{len(PROBLEMS)} ({pass_pct:.1f}%) — total {total_s:.0f}s ===")
+    print(f"\n=== {args.label} pass@1 = {pass_count}/{len(PROBLEMS)} ({pass_pct:.1f}%), total {total_s:.0f}s ===")
 
     out_path = f"humaneval_{args.label}.json"
     with open(out_path, "w") as f:

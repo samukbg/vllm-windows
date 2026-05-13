@@ -1,5 +1,5 @@
 @echo off
-REM stop_vllm.bat — kill any vLLM server on ports 5000-5010 + sweep EngineCore/APIServer children
+REM stop_vllm.bat, kill any vLLM server on ports 5000-5010 + sweep EngineCore/APIServer children
 setlocal
 cd /d "%~dp0"
 set "REPO_ROOT=%~dp0.."

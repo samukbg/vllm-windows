@@ -54,7 +54,7 @@ _writable_root_cache: Path | None = None
 def writable_root() -> Path:
     """Returns the install root if writable, else %LocalAppData%\\<APP_NAME>\\.
 
-    Memoized — UAC virtualization can make repeated probes inconsistent.
+    Memoized, UAC virtualization can make repeated probes inconsistent.
     """
     global _writable_root_cache
     if _writable_root_cache is not None:
@@ -104,7 +104,7 @@ def default_model_dir() -> Path:
 def download_target_dir() -> Path:
     """Always-writable destination for model auto-download.
 
-    Independent of `default_model_dir` — that one prefers an existing
+    Independent of `default_model_dir`, that one prefers an existing
     install\\models folder when present, but a fresh download must land
     somewhere we are 100% sure we can write 16 GB to.
     """

@@ -2,7 +2,7 @@
 
 Sweeps every ``EngineCore pid=N`` / ``APIServer pid=N`` line from the
 matching log file because vLLM's API-server PID does NOT always cascade
-to the EngineCore subprocess on Windows — orphans hold the ZMQ port and
+to the EngineCore subprocess on Windows, orphans hold the ZMQ port and
 break the next launch with ``Address in use (addr='tcp://127.0.0.1:459NN')``.
 
 Usage:

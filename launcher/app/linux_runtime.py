@@ -327,7 +327,7 @@ def shutdown_box(host: str, user: str, password: str, shared: dict,
         timeout=10,
     )
     if code != 0:
-        # don't fail the whole shutdown — just warn
+        # don't fail the whole shutdown, just warn
         _p(f"WOL enable WARNING: {(out or err).strip()[:120]}")
     else:
         _p((out or err).strip().splitlines()[-1] if (out or err) else "WOL enabled")
@@ -344,7 +344,7 @@ def shutdown_box(host: str, user: str, password: str, shared: dict,
 
     _p("Waiting for box to go offline (ping)...")
     if not wait_until_offline(host, max_seconds=120):
-        return False, f"box still pings after 120s — shutdown may have hung"
+        return False, f"box still pings after 120s, shutdown may have hung"
     _p(f"Box {host} confirmed OFFLINE.")
     return True, f"{host} is offline."
 
@@ -354,7 +354,7 @@ def wake_on_lan(mac: str, broadcast: str = "255.255.255.255",
     """Send WOL magic packet to `broadcast` on `ports` (UDP).
 
     Sends to multiple common WOL ports (9 and 7) for robustness. Returns
-    (sent_ok, message). Does NOT verify the box came online — caller
+    (sent_ok, message). Does NOT verify the box came online, caller
     should poll ping_alive separately.
     """
     import socket

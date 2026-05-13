@@ -125,7 +125,7 @@ def tier3_developer_role(port: int, model: str) -> tuple[bool, str]:
 
     Two-part check:
       a) /v1/chat/completions/render token_ids must include the developer
-         text — proves the chat template routed `developer` → system.
+         text, proves the chat template routed `developer` → system.
       b) The model honors a model-friendly developer instruction
          (append a sentinel marker), proving end-to-end aliasing.
     """
@@ -154,7 +154,7 @@ def tier3_developer_role(port: int, model: str) -> tuple[bool, str]:
     # Without developer message, "What is 2+2?" alone renders as ~13 tokens.
     # With our 28-word developer instruction it should be ~50+ tokens.
     if n_tokens < 30:
-        return False, f"developer message likely dropped — only {n_tokens} prompt tokens"
+        return False, f"developer message likely dropped, only {n_tokens} prompt tokens"
 
     # Part (b): end-to-end behavior
     body = {
@@ -184,8 +184,8 @@ def main() -> int:
     args = ap.parse_args()
 
     tiers = [
-        ("emits_tool_call",      tier1_emits_tool_call),
-        ("synthesizes_result",   tier2_synthesizes_result),
+        ("emits_tool_call", tier1_emits_tool_call),
+        ("synthesizes_result", tier2_synthesizes_result),
         ("developer_role_alias", tier3_developer_role),
     ]
     all_ok = True

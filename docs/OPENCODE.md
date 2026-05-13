@@ -10,12 +10,12 @@ layer.
 
 There are two repos with confusingly similar names. Use the first one.
 
-- **`sst/opencode`** (this doc) — actively maintained by the SST team.
+- **`sst/opencode`** (this doc), actively maintained by the SST team.
   Latest is v1.14.x (May 2026). Docs at [opencode.ai](https://opencode.ai).
   npm package: `opencode-ai`. Yes, the npm name reuses the older
   fork's slug; the GitHub repo is what tells you which project you're
   on.
-- `opencode-ai/opencode` (the older Go-based fork acquired by Charm) —
+- `opencode-ai/opencode` (the older Go-based fork acquired by Charm) ,
   not what this doc covers. If you cloned that repo, the config schema
   below will not match.
 
@@ -213,25 +213,25 @@ confirmed by a Reddit user running OpenCode against this server.
 
 ## Troubleshooting
 
-- **"model not found"** — the model key in `opencode.json` doesn't
+- **"model not found"**, the model key in `opencode.json` doesn't
   match what `/v1/models` returns. Re-run `curl http://127.0.0.1:5001/v1/models`
   and copy the `id` field verbatim, or use `"any"`.
-- **Every request 404s** — `baseURL` is missing the `/v1` path.
-- **`/connect` asks for an API key** — vLLM doesn't validate it, but
+- **Every request 404s**, `baseURL` is missing the `/v1` path.
+- **`/connect` asks for an API key**, vLLM doesn't validate it, but
   the SDK requires the field non-empty. Any string works.
-- **Empty response, finish_reason length** — the thinking block ate
+- **Empty response, finish_reason length**, the thinking block ate
   `max_tokens`. Qwen3.6 is a thinking model; with the budget under
   about 1500 the entire allowance can go into `<think>`. OpenCode
   defaults are fine, but if you script your own calls, set
   `max_tokens` to 2000+ for short Q&A.
-- **Tool calls fail or stop mid-task** — almost always a server-side
+- **Tool calls fail or stop mid-task**, almost always a server-side
   issue rather than OpenCode. Run
   `python windows_tools\check_coherence.py --port 5001` to confirm
   the server itself is healthy. If coherence passes but tool calls
   still fail, capture the request/response and open an issue.
 - **First request after boot takes longer.** vLLM compiles attention
   kernels lazily on first request. Subsequent requests are fast.
-- **Wrong model selected** — pin per-session with
+- **Wrong model selected**, pin per-session with
   `/model vllm-local/qwen3.6-27b-autoround`, or set the top-level
   `"model"` field in `opencode.json` as shown above.
 

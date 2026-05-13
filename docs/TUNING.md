@@ -57,7 +57,7 @@ KV, FlashInfer, and a few Genesis patches are unavailable. What remains:
 
    **Three Blackwell observations from the 575W re-bench:**
 
-   - **Power cap matters for decode** on Blackwell — 500W → 575W adds
+   - **Power cap matters for decode** on Blackwell, 500W → 575W adds
      ~20-30% short decode and ~10-20% long decode. (On Ampere the
      equivalent 250→350W bump moved only prefill, never decode, because
      decode was bandwidth-bound. Blackwell evidently has compute
@@ -130,7 +130,7 @@ ctx 200 k, that's a lot of shapes. Expected wall-clock to first
 | After `wipe_caches.py` (all four caches wiped)  | 11–25 min      |
 
 You will see many `[AutoTuner]: Tuning fp4_gemm: 0/13 → 13/13` cycles.
-That's expected, not a loop — each cycle is a different shape. The
+That's expected, not a loop, each cycle is a different shape. The
 `[Autotuner]: Skipped 6 unsupported tactic(s) for fp4_gemm` line is
 also normal: those six are TMA-WS kernels gated on `compute_120f`,
 not shipped in the bundled cubin pack. The validated 5,300 tok/s
@@ -192,7 +192,7 @@ cache populated under a pre-v1.3.2 boot can still be sticky.
 
    | Phase                    | tok/s   | drift   |
    |--------------------------|---------|---------|
-   | baseline (3 short)       | 119.3   | —       |
+   | baseline (3 short)       | 119.3   |, |
    | after 1st 24k hit        | 122.4   | +2.6 %  |
    | after 2nd 24k hit        | 122.0   | +2.3 %  |
 

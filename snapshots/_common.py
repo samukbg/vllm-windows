@@ -70,7 +70,7 @@ def _resolve_model_path() -> str:
 
     1. $VLLM_MODEL_DIR (explicit override).
     2. user_config.json["model_dir"] at repo root (written by the launcher
-       once it finds/downloads the model — typically not next to the repo).
+       once it finds/downloads the model, typically not next to the repo).
     3. Repo-root default ``models/Qwen3.6-27B-int4-AutoRound``.
     """
     env = os.environ.get("VLLM_MODEL_DIR")
@@ -170,7 +170,7 @@ VCVARS = _find_vcvars()
 def _count_visible_gpus() -> int:
     """Count NVIDIA GPUs reported by nvidia-smi.
 
-    Returns 0 when nvidia-smi is missing or fails — caller should treat
+    Returns 0 when nvidia-smi is missing or fails, caller should treat
     that as 'unknown, don't second-guess the snapshot defaults'.
     """
     try:
@@ -199,8 +199,8 @@ def print_insufficient_gpus_banner(wanted: int, visible: int) -> None:
     print(bar, flush=True)
     print("  Multi-GPU snapshots (PP=2 / TP=2) require two NVIDIA GPUs.", flush=True)
     print("  On a single-GPU box, pick one of the single-GPU snapshots", flush=True)
-    print("  from the launcher dashboard instead — for example:", flush=True)
-    print("    start_speed   (64 tok/s @ 90k ctx,  MTP n=6)", flush=True)
+    print("  from the launcher dashboard instead, for example:", flush=True)
+    print("    start_speed   (64 tok/s @ 90k ctx, MTP n=6)", flush=True)
     print("    start_127k    (53 tok/s @ 127k ctx, MTP n=3)", flush=True)
     print("    start_gpu0_50k (GPU 0 only, conservative defaults)", flush=True)
     print("  Or edit this snapshot's TP/PP via Edit Snapshots (E) in", flush=True)
@@ -219,7 +219,7 @@ def resolve_cuda_visible_devices(preferred_single: str, world_size: int) -> str 
 
     Single-GPU snapshots fall back to GPU 0 (with an info note about the
     mem_util ceiling that GPU 0 + display attached implies). Multi-GPU
-    snapshots have no graceful fallback — print the banner and return
+    snapshots have no graceful fallback, print the banner and return
     ``None`` so the caller bails before launching vLLM.
 
     Args:
@@ -248,7 +248,7 @@ def resolve_cuda_visible_devices(preferred_single: str, world_size: int) -> str 
     if visible and wanted_idx >= visible:
         print(
             f"[info] snapshot prefers GPU {wanted_idx} but only {visible} "
-            f"GPU(s) visible — falling back to GPU 0. If GPU 0 has a "
+            f"GPU(s) visible, falling back to GPU 0. If GPU 0 has a "
             f"display attached, the safety check may trip on "
             f"--gpu-memory-utilization >= 0.95; lower to 0.92 via the "
             f"launcher's Edit Snapshots screen if you see "
@@ -263,7 +263,7 @@ def _latest_vctools_version(vcvars_path: str) -> str | None:
     """Find the newest MSVC toolset version installed alongside vcvars64.bat.
 
     vcvars64.bat without ``VCToolsVersion`` set picks an unspecified
-    default toolset — which on systems with multiple VS Build Tools
+    default toolset, which on systems with multiple VS Build Tools
     side-by-side (e.g. 14.38 + 14.44) is frequently the older one. The
     older 14.38 ``cl.exe`` rejects empty-brace initializers (``T x = {};``)
     that Triton's generated ``__triton_launcher.c`` emits, breaking the
@@ -354,7 +354,7 @@ def _ensure_cudart_alias(cuda_path: str | Path) -> None:
     Best-effort fix: copy the real DLL alongside under the expected name.
     The CUDA install dir is usually under Program Files (admin write), so
     the copy can fail with PermissionError. In that case we print a
-    one-line copy command the user can run from an admin prompt — same
+    one-line copy command the user can run from an admin prompt, same
     workaround as before, just surfaced at the right moment.
     """
     try:
@@ -414,7 +414,7 @@ def cuda_env() -> dict:
     flashinfer reads CUDA_HOME / CUDA_ROOT / CUDA_PATH / CUDA_LIB_PATH (in
     that order), then loads ``<root>/bin/cudart64_<N>.dll`` where N is
     derived from ``torch.version.cuda``. On a CUDA 13 torch (cu130 wheel,
-    Blackwell-supporting), N is "13" — and most Windows boxes only have
+    Blackwell-supporting), N is "13", and most Windows boxes only have
     CUDA 12.x installed, so the import dies.
 
     Resolution order:
@@ -511,10 +511,10 @@ def clean_cuda_env(base: "dict[str, str] | None" = None) -> "dict[str, str]":
 
     The four user environment classes this hardens against:
 
-      1. Pure inference users — drivers only, no system CUDA. Already
+      1. Pure inference users, drivers only, no system CUDA. Already
          worked; this is a no-op for them.
       2. Devs with CUDA 12.x installed for some other tool. The
-         critical one — system 12.4 was the cache-poison vector.
+         critical one, system 12.4 was the cache-poison vector.
       3. Devs with CUDA 13.x installed. Worked accidentally before;
          we still scrub so behaviour is uniform across machines.
       4. Conda/Miniconda/Mamba users with cudatoolkit on PATH.
@@ -598,7 +598,7 @@ def preflight_sm120a_or_die(env: "dict[str, str]", *, vllm_python: "Path | str")
     line = (out.stdout or out.stderr or "").strip().splitlines()
     last = line[-1] if line else ""
     if out.returncode == 0:
-        print(f"[preflight] OK — {last}", flush=True)
+        print(f"[preflight] OK, {last}", flush=True)
         return
     # Failure: print everything we know, then bail.
     print("=" * 72, file=sys.stderr, flush=True)
@@ -613,7 +613,7 @@ def preflight_sm120a_or_die(env: "dict[str, str]", *, vllm_python: "Path | str")
               file=sys.stderr, flush=True)
         print("[preflight ERROR] scrub, an already-loaded cudart in this process tree",
               file=sys.stderr, flush=True)
-        print("[preflight ERROR] can survive — close all terminals and relaunch from",
+        print("[preflight ERROR] can survive, close all terminals and relaunch from",
               file=sys.stderr, flush=True)
         print("[preflight ERROR] start.bat in a fresh shell.",
               file=sys.stderr, flush=True)
@@ -624,7 +624,7 @@ def preflight_sm120a_or_die(env: "dict[str, str]", *, vllm_python: "Path | str")
         print('[preflight ERROR]   echo %CUDA_PATH%', file=sys.stderr, flush=True)
         print('[preflight ERROR]   echo %PATH%', file=sys.stderr, flush=True)
     elif out.returncode == 4:
-        print("[preflight ERROR] Probe raised — check the message above.",
+        print("[preflight ERROR] Probe raised, check the message above.",
               file=sys.stderr, flush=True)
     print("[preflight ERROR] If this persists despite a clean shell, the wheel",
           file=sys.stderr, flush=True)
@@ -821,7 +821,7 @@ def log_path_for(port: int) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Runtime manifest — the launcher's source of truth for "what's running"
+# Runtime manifest, the launcher's source of truth for "what's running"
 #
 # Each snapshot writes <LOGS_DIR>/runtime/<port>.json on boot identifying
 # itself by snapshot script filename. The launcher reads these to decide
@@ -854,9 +854,9 @@ def write_manifest(*, snapshot_py: Path | str, port: int, wrapper_pid: int,
     import json, tempfile, datetime
     p = Path(snapshot_py)
     payload = {
-        "snapshot_id": p.stem,                  # e.g. "start_speed"
-        "snapshot_py": p.name,                  # e.g. "start_speed.py"
-        "snapshot_bat": p.with_suffix(".bat").name,  # e.g. "start_speed.bat"
+        "snapshot_id": p.stem, # e.g. "start_speed"
+        "snapshot_py": p.name, # e.g. "start_speed.py"
+        "snapshot_bat": p.with_suffix(".bat").name, # e.g. "start_speed.bat"
         "port": int(port),
         "wrapper_pid": int(wrapper_pid),
         "max_model_len": max_model_len,
@@ -922,6 +922,6 @@ def enhanced_jinja_path() -> Path:
     for p in candidates:
         if p.exists():
             return p
-    # Last resort — return the most likely portable layout (launcher next
+    # Last resort, return the most likely portable layout (launcher next
     # to vllm-windows). Caller will print an error if it doesn't exist.
     return candidates[0]

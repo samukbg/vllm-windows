@@ -4,7 +4,7 @@ Runs in the parent cmd window before Textual mounts. Prints plain text
 so any error is visible (no flashing-and-closing window failure mode).
 
 Discovery order:
-  1. $VLLM_MODEL_DIR — explicit override, wins.
+  1. $VLLM_MODEL_DIR, explicit override, wins.
   2. user_config.json saved path from a previous run.
   3. <writable_root>\\models\\Qwen3.6-27B-int4-AutoRound (default location).
   4. Quick scan of fixed drives for a folder of that name.
@@ -14,7 +14,7 @@ If nothing is found, prompts the user:
   [2] auto-download from Hugging Face (~16 GB, public, no token needed)
   [q] quit
 
-Auto-download uses stdlib urllib only — no huggingface_hub dependency.
+Auto-download uses stdlib urllib only, no huggingface_hub dependency.
 The Lorbus repo is public so the resolve URLs work anonymously.
 
 After a model dir is identified (whether discovered, entered, or freshly
@@ -45,7 +45,7 @@ if _WINDOWS_TOOLS.is_dir() and str(_WINDOWS_TOOLS) not in sys.path:
     sys.path.insert(0, str(_WINDOWS_TOOLS))
 try:
     from patch_tokenizer import apply_tokenizer_patch  # type: ignore
-except ImportError:  # pragma: no cover — missing windows_tools/, dev checkout
+except ImportError:  # pragma: no cover, missing windows_tools/, dev checkout
     def apply_tokenizer_patch(model_dir, keep_backup: bool = False) -> bool:  # type: ignore
         return False
 
@@ -61,7 +61,7 @@ def _scan_fixed_drives() -> list[Path]:
     """Look for a `Qwen3.6-27B-int4-AutoRound` folder on the obvious places.
 
     Cheap: only checks a fixed list of likely parent directories on each
-    drive — does not walk full trees. Designed to find the folder a user
+    drive, does not walk full trees. Designed to find the folder a user
     already has from a previous download without lighting the disk on
     fire. The candidate layouts cover what users actually do in practice:
 
@@ -107,7 +107,7 @@ def _discover() -> tuple[Path, str] | None:
 
     The source label feeds into the provenance log printed by
     ``ensure_model`` so the user can see *which* dir the launcher
-    matched and why — important when multiple Qwen3.6-27B-int4-AutoRound
+    matched and why, important when multiple Qwen3.6-27B-int4-AutoRound
     folders exist on disk from different uploaders.
     """
     env = os.environ.get("VLLM_MODEL_DIR")
@@ -135,7 +135,7 @@ def _provenance_repo_id(p: Path) -> str | None:
 
     Two signals, in order:
       1. Hugging Face cache layout: ``…/hub/models--<org>--<repo>/snapshots/<sha>/``
-         — any ancestor whose name starts with ``models--`` decodes cleanly.
+        , any ancestor whose name starts with ``models--`` decodes cleanly.
       2. ``config.json`` ``_name_or_path`` field.
     Returns None when neither is conclusive.
     """
@@ -266,7 +266,7 @@ def _download_repo(dest_root: Path) -> None:
     total_bytes = sum(f["size"] for f in files)
     print(f"  {len(files)} files, ~{_fmt_bytes(total_bytes)} total\n")
     print(f"Destination: {dest_root}")
-    # Free-space preflight on the destination drive — fail loud BEFORE
+    # Free-space preflight on the destination drive, fail loud BEFORE
     # writing 16 GB of partial shards into a too-small disk.
     try:
         dest_root.parent.mkdir(parents=True, exist_ok=True)
@@ -293,7 +293,7 @@ def _download_repo(dest_root: Path) -> None:
 
 def _print_banner() -> None:
     print("=" * 70)
-    print(" qwen3.6-windows-server — first-run model setup")
+    print(" qwen3.6-windows-server, first-run model setup")
     print("=" * 70)
     install = paths.install_root()
     writable = paths.writable_root()
@@ -379,7 +379,7 @@ def _autopatch(model_dir: Path) -> None:
     try:
         if apply_tokenizer_patch(model_dir):
             print(f"  [autopatch] tokenizer_config.json: 'TokenizersBackend' -> 'Qwen2Tokenizer'")
-    except Exception as e:  # noqa: BLE001 — never let the patch crash the launcher
+    except Exception as e:  # noqa: BLE001, never let the patch crash the launcher
         print(f"  [autopatch] WARNING: could not patch tokenizer_config.json: {e}")
 
 
@@ -397,8 +397,8 @@ def ensure_model(
     skip the prompt entirely.
 
     Headless flags:
-      ``explicit_dir`` — use this exact path; error if it doesn't validate.
-      ``auto_download`` — when no model is found, download instead of prompting.
+      ``explicit_dir``, use this exact path; error if it doesn't validate.
+      ``auto_download``, when no model is found, download instead of prompting.
     """
     if explicit_dir is not None:
         p = Path(explicit_dir)
@@ -426,7 +426,7 @@ def ensure_model(
                 )
                 print(
                     "[model]       MTP draft-head quality is only validated on the "
-                    "Lorbus quant — see docs/MTP_HEAD.md."
+                    "Lorbus quant, see docs/MTP_HEAD.md."
                 )
                 print(
                     "[model]       Pass --model-dir <path> (or set $VLLM_MODEL_DIR) "
