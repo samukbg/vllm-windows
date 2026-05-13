@@ -2,7 +2,7 @@
 
 The portable zip ships only the launcher, the wheel, and an embedded Python
 3.12 runtime. It does NOT pre-install vLLM and its ~150 transitive
-dependencies (torch, cuda libs, transformers, ray, etc.) — that would push
+dependencies (torch, cuda libs, transformers, ray, etc.), that would push
 the zip past the 2 GB GitHub release-asset cap.
 
 Instead, on first run we install the bundled wheel into the embedded
@@ -17,7 +17,7 @@ Pipeline:
      ``wheels/vllm.whl`` (back-compat with v0.1.4 and earlier zips).
   3. If pip is missing, bootstrap it with the vendored ``get-pip.py``
      (or download from https://bootstrap.pypa.io).
-  4. ``pip install --extra-index-url <pytorch-cu126> <wheel>`` — pulls
+  4. ``pip install --extra-index-url <pytorch-cu126> <wheel>``, pulls
      torch + ~150 deps from PyPI / pytorch.org. Several GB, several
      minutes. Resumable: rerunning skips wheels already cached.
   5. Write a marker JSON containing the wheel's SHA256 + version so a
@@ -117,7 +117,7 @@ def _wheel_proper_filename(wheel: Path) -> Path:
     renamed copy under the writable root.
     """
     if wheel.name.startswith("vllm-") and wheel.name.endswith(".whl"):
-        return wheel  # already properly named — nothing to do
+        return wheel  # already properly named, nothing to do
 
     import zipfile
     version = None
@@ -171,7 +171,7 @@ def _write_marker(payload: dict) -> None:
     try:
         _marker_path().write_text(json.dumps(payload, indent=2), encoding="utf-8")
     except OSError as e:
-        # Non-fatal — site-packages may be read-only when install_root is
+        # Non-fatal, site-packages may be read-only when install_root is
         # under Program Files. The next run will just re-import-check.
         print(f"  (note: could not write install marker: {e})")
 
@@ -304,8 +304,8 @@ def _pip_env() -> dict:
 
     Pip's install/uninstall path renames files between TMP and the target
     site-packages dir. When TMP points to a host-managed location that pip
-    cannot reliably stat or write through (observed: parent process inheriting
-    TMP from a portable claude-code install at ``C:\\_projects\\claude-portable\\temp``),
+    cannot reliably stat or write through (observed when the parent process
+    inherits a TMP set by another tool to a sandboxed or non-default path),
     pip rolls back mid-install with ``OSError: [Errno 2] No such file or
     directory: '...INSTALLER<random>.tmp'``. Override TMP/TEMP to a dedicated
     dir under the install root so they are guaranteed same-volume, writable,
@@ -353,7 +353,7 @@ def _torch_index_for_wheel(wheel: Path) -> str:
 
     Pulling torch from the wrong channel installs binaries that won't load
     against the wheel's CUDA runtime. cu130 torch is required for Blackwell
-    (sm_120) anyway — the cu126 build has no sm_120 kernels.
+    (sm_120) anyway, the cu126 build has no sm_120 kernels.
     """
     name = wheel.name.lower()
     if "+cu13" in name:
@@ -400,7 +400,7 @@ def _install_wheel(wheel: Path) -> None:
     if r.returncode != 0:
         raise RuntimeError(f"pip install failed (exit {r.returncode})")
     # vLLM 0.19.0+devnen.1's METADATA gates llguidance + xgrammar on
-    # ``platform_machine == "x86_64"`` — Windows reports "AMD64" instead,
+    # ``platform_machine == "x86_64"``, Windows reports "AMD64" instead,
     # so pip's marker evaluator skips both. Install them explicitly so
     # the structured-output backend can import.
     print()
@@ -418,7 +418,7 @@ def _install_wheel(wheel: Path) -> None:
 
 def _print_banner() -> None:
     print("=" * 70)
-    print(" qwen3.6-windows-server — first-run runtime install")
+    print(" qwen3.6-windows-server, first-run runtime install")
     print("=" * 70)
     print(f"  python:        {sys.executable}")
     print(f"  install root:  {paths.install_root()}")
@@ -540,7 +540,7 @@ def _check_gpu_supports_wheel(wheel: Path) -> tuple[str, str] | None:
         too old regardless of wheel choice.
       - bundled cu132/cu130 (Blackwell zip), GPU is sm 8.6 / 8.9
         (Ampere/Ada): WARN. wheel works fine but user installed a CUDA-13
-        driver upgrade for nothing — the cu126 zip would have been simpler.
+        driver upgrade for nothing, the cu126 zip would have been simpler.
       - GPU sm < 8.6: FATAL on any wheel.
     """
     name = wheel.name.lower()
@@ -592,7 +592,7 @@ def ensure_runtime() -> None:
     Idempotent: a no-op when the marker file's wheel SHA matches the
     bundled wheel and ``import vllm`` works. When a user re-extracts a
     new release zip on top of an existing install we detect the SHA
-    mismatch and reinstall — without that check, the old vLLM stays in
+    mismatch and reinstall, without that check, the old vLLM stays in
     site-packages forever.
     """
     # Self-heal missing Python C headers / import libs before doing
@@ -619,7 +619,7 @@ def ensure_runtime() -> None:
         return
 
     # Older install (no marker / legacy "ok" string) but vllm imports.
-    # If we can't see a bundled wheel either, leave it alone — the user
+    # If we can't see a bundled wheel either, leave it alone, the user
     # may be running against their own venv.
     if marker and marker.get("wheel_sha256") is None and _vllm_importable() and not wheel:
         return
@@ -636,7 +636,7 @@ def ensure_runtime() -> None:
     _print_banner()
 
     if marker.get("wheel_sha256") and marker.get("wheel_sha256") != bundled_sha:
-        print("  [reinstall] Bundled wheel changed since last install — reinstalling vLLM.")
+        print("  [reinstall] Bundled wheel changed since last install, reinstalling vLLM.")
         print(f"             marker: {marker.get('wheel_sha256', '<none>')[:12]}...")
         print(f"             bundle: {bundled_sha[:12]}...")
         print()
