@@ -87,8 +87,35 @@ def _manifest_dir() -> Path:
     return _logs_dir() / "runtime"
 
 
+def _diag_log(msg: str) -> None:
+    """Append a timestamped line to <logs>/launcher.diag.log.
+
+    Textual takes over the terminal, so print() output from the TUI is
+    invisible to users. A file is the only reliable way to surface
+    runtime-poll diagnostics for support.
+    """
+    try:
+        import datetime as _dt
+        line = f"{_dt.datetime.now().isoformat(timespec='seconds')} {msg}\n"
+        (_logs_dir() / "launcher.diag.log").open("a", encoding="utf-8").write(line)
+    except OSError:
+        pass
+
+
 def _read_manifests() -> list[dict]:
-    """Read all <logs>/runtime/<port>.json. Returns list of dicts."""
+    """Read all <logs>/runtime/<port>.json. Returns list of dicts.
+
+    Read errors (OSError from a Windows file-sharing race against
+    write_manifest's os.replace, or ValueError from a partial JSON read)
+    are skipped, NOT unlinked. Unlinking on a transient read failure was
+    the cause of issue #12 round 4: the launcher GC'd the freshly-written
+    manifest on its first poll, before the 60s grace check in
+    detect_running could ever run, leaving the dashboard stuck on
+    LOADING. Snapshots own their own manifest's lifecycle (they
+    clear_manifest in their finally block, and kill_pid clears via
+    clear_manifest_for_port on Unload). The launcher has no business
+    deleting one it failed to read this poll, the next poll will retry.
+    """
     import json
     d = _manifest_dir()
     if not d.exists():
@@ -99,9 +126,8 @@ def _read_manifests() -> list[dict]:
             data = json.loads(p.read_text(encoding="utf-8"))
             data["__path__"] = str(p)
             out.append(data)
-        except (OSError, ValueError):
-            try: p.unlink()
-            except OSError: pass
+        except (OSError, ValueError) as e:
+            _diag_log(f"manifest read failed {p.name}: {type(e).__name__}: {e}")
     return out
 
 
@@ -200,10 +226,9 @@ def detect_running(ports: list[int], configs) -> dict[str, RunningProc]:
                 pass
             if young:
                 continue
-            print(
-                f"[runtime] GC manifest {mf_path} port={port} "
-                f"wrapper_pid={wrapper_pid} port_up={port_up} wrapper_up={wrapper_up}",
-                flush=True,
+            _diag_log(
+                f"GC manifest {mf_path} port={port} "
+                f"wrapper_pid={wrapper_pid} port_up={port_up} wrapper_up={wrapper_up}"
             )
             try: Path(mf_path).unlink()
             except (OSError, TypeError): pass
