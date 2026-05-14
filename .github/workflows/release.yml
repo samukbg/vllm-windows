@@ -144,18 +144,6 @@ jobs:
             --variant blackwell \
             --wheel '${{ steps.wheel.outputs.name_blackwell }}'
 
-      - name: Create legacy Ampere alias (portable-x64.zip)
-        if: steps.wheel.outputs.name_ampere != ''
-        shell: bash
-        run: |
-          # v1.2.0/v1.2.1 update.py only knows the unsuffixed portable-x64.zip
-          # name for Ampere. Keep an alias copy so users on those versions can
-          # still auto-update past v1.2.2. The launcher repo's own updater
-          # (v1.2.3+) prefers the -ampere.zip name and falls back to legacy.
-          cp dist/qwen3.6-windows-server-portable-x64-ampere.zip \
-             dist/qwen3.6-windows-server-portable-x64.zip
-          ls -lh dist/*.zip
-
       - name: Generate SHA256SUMS.txt
         shell: bash
         run: |

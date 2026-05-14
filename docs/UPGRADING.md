@@ -184,7 +184,7 @@ network, etc.), download the zip manually from the
 copy it to the install machine, and:
 
 ```
-update.bat --zip "C:\path\to\qwen3.6-windows-server-portable-x64.zip"
+update.bat --zip "C:\path\to\qwen3.6-windows-server-portable-x64-ampere.zip"
 ```
 
 The variant is still autodetected from the existing install. The

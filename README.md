@@ -141,8 +141,12 @@ something else.
 
 **Interactive path:**
 
-1. Download [`qwen3.6-windows-server-portable-x64.zip`](../../releases/latest)
-   from the latest Release. Extract anywhere (no admin needed).
+1. Download the right zip for your GPU from the
+   [latest Release](../../releases/latest):
+   - `qwen3.6-windows-server-portable-x64-ampere.zip` for 30-series / 40-series (Ampere, Ada).
+   - `qwen3.6-windows-server-portable-x64-blackwell.zip` for 50-series (Blackwell).
+
+   Extract anywhere (no admin needed).
 2. Double-click `start.bat`. The first run does two one-time steps,
    then drops you in the TUI:
    - **Runtime install** (~5–15 min, several GB). The bundled vLLM

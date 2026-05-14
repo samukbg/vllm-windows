@@ -21,7 +21,8 @@ If a snapshot is running, stop it first:
 
 ## Step 2, Delete the install folder
 
-Wherever you extracted `qwen3.6-windows-server-portable-x64.zip`,
+Wherever you extracted the portable zip (`qwen3.6-windows-server-portable-x64-ampere.zip`
+or `-blackwell.zip`),
 delete that folder. It contains:
 
 - The embedded Python 3.12 runtime

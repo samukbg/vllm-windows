@@ -58,8 +58,8 @@ the system disk on either rig.
 
 ## RTX 50-series (Blackwell, sm_120), supported via the Blackwell zip
 
-We ship two release zips. The default
-`qwen3.6-windows-server-portable-x64.zip` (Ampere/Ada) bundles
+We ship two release zips. The Ampere/Ada zip
+`qwen3.6-windows-server-portable-x64-ampere.zip` bundles
 `vllm-0.19.0+devnen.3` against CUDA 12.6 / PyTorch cu126, kernels go up
 to sm_90, so on RTX 5060 / 5070 / 5080 / 5090 it would fail at boot with
 `cudaErrorNoKernelImageForDevice`. **Use

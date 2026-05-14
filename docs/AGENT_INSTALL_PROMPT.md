@@ -29,10 +29,10 @@ recent CUDA driver. Won't work on Pascal/Turing/Intel Arc/AMD.
 2. Detect the GPU arch so you pick the right zip. Two zips ship per
    release:
 
-   - `qwen3.6-windows-server-portable-x64.zip` for Ampere / Ada
+   - `qwen3.6-windows-server-portable-x64-ampere.zip` for Ampere / Ada
      (RTX 3090 / 4090 / A6000, sm_86 / sm_89).
    - `qwen3.6-windows-server-portable-x64-blackwell.zip` for Blackwell
-     (RTX 5060 / 5070 / 5080 / 5090, sm_120). The default zip lacks
+     (RTX 5060 / 5070 / 5080 / 5090, sm_120). The Ampere zip lacks
      sm_120 kernels and dies at boot with
      `cudaErrorNoKernelImageForDevice` on a 50-series card.
 
@@ -40,15 +40,15 @@ recent CUDA driver. Won't work on Pascal/Turing/Intel Arc/AMD.
 
       nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -1
 
-   `12.0` -> Blackwell zip. `8.6` / `8.9` -> default zip.
+   `12.0` -> Blackwell zip. `8.6` / `8.9` -> Ampere zip.
 
 3. Create INSTALL_DIR if missing. Use the GitHub API to find the latest
    release zip URL for the matching variant, don't hardcode a tag, the
    project ships fixes regularly:
 
-      # default (Ampere/Ada) zip
+      # Ampere/Ada zip
       curl -sL https://api.github.com/repos/devnen/qwen3.6-windows-server/releases/latest \
-        | grep -oE '"browser_download_url": *"[^"]*portable-x64\.zip"' \
+        | grep -oE '"browser_download_url": *"[^"]*portable-x64-ampere\.zip"' \
         | head -1 | cut -d'"' -f4
 
       # Blackwell zip

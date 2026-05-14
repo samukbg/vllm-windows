@@ -8,9 +8,7 @@ For users who just want it to run.
 
 1. Open the latest [Release](../../../releases). Pick the right zip for your GPU:
    - **30-series / 40-series (Ampere, Ada):**
-     `qwen3.6-windows-server-portable-x64-ampere.zip` (or the legacy
-     unsuffixed `qwen3.6-windows-server-portable-x64.zip` alias for
-     pre-v1.2.3 auto-update compatibility, same content)
+     `qwen3.6-windows-server-portable-x64-ampere.zip`
      (vLLM 0.19.0+devnen.3, CUDA 12.6 / cu126 torch). This is the default.
    - **50-series (Blackwell, 5060/5070/5080/5090):**
      `qwen3.6-windows-server-portable-x64-blackwell.zip`

@@ -1,7 +1,8 @@
 """Developer-side: build the portable launcher zip for a release.
 
-Run on the developer machine ONCE per tag. Produces
-``qwen3.6-windows-server-portable-x64.zip`` with embeddable Python, all
+Run on the developer machine ONCE per tag, once per variant. Produces
+``qwen3.6-windows-server-portable-x64-<variant>.zip`` (ampere or
+blackwell) with embeddable Python, all
 launcher dependencies preinstalled, the launcher source, snapshot/tool
 scripts, and (optionally) the patched vLLM wheel. End users unzip and
 double-click ``start.bat``, they NEVER run pip.
@@ -63,26 +64,23 @@ def main() -> int:
                     help="Build scratch dir. Defaults to .build_launcher[-VARIANT] under the repo.")
     ap.add_argument("--wheel", default=None,
                     help="Path to vllm-...+devnen.X-...whl to bundle into wheels/")
-    ap.add_argument("--variant", default=None, choices=[None, "ampere", "blackwell"],
-                    help="Release variant. 'ampere' = current 30/40-series zip (cu126 torch, "
-                         "vllm 0.19.x). 'blackwell' = 50-series zip (cu130 torch, vllm 0.20.x, "
-                         "CUDA 13 shim auto-built at first run). Affects default --out filename. "
-                         "Omit for legacy single-zip builds.")
+    ap.add_argument("--variant", default="ampere", choices=["ampere", "blackwell"],
+                    help="Release variant. 'ampere' (default) = 30/40-series zip "
+                         "(cu126 torch, vllm 0.19.x). 'blackwell' = 50-series zip "
+                         "(cu130 torch, vllm 0.20.x, CUDA 13 shim auto-built at "
+                         "first run). Affects default --out filename.")
     args = ap.parse_args()
 
     variant = args.variant
     if args.out:
         out_zip = Path(args.out)
-    elif variant:
-        out_zip = REPO / "dist" / f"qwen3.6-windows-server-portable-x64-{variant}.zip"
     else:
-        out_zip = REPO / "dist" / "qwen3.6-windows-server-portable-x64.zip"
+        out_zip = REPO / "dist" / f"qwen3.6-windows-server-portable-x64-{variant}.zip"
 
     if args.workdir:
         work = Path(args.workdir)
     else:
-        suffix = f"-{variant}" if variant else ""
-        work = REPO / f".build_launcher{suffix}"
+        work = REPO / f".build_launcher-{variant}"
 
     if variant == "blackwell" and args.wheel:
         wheel_name = Path(args.wheel).name

@@ -32,7 +32,7 @@ on first boot. No CUDA Toolkit install required.
 
 ## Why two zips
 
-The default `qwen3.6-windows-server-portable-x64.zip` ships
+The Ampere/Ada zip `qwen3.6-windows-server-portable-x64-ampere.zip` ships
 `vllm-0.19.0+devnen.3` against CUDA 12.6 / PyTorch cu126. That torch
 build has no `sm_120` kernels, so on Blackwell it boots cleanly to the
 first `torch.zeros` call and dies with
