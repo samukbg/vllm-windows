@@ -209,27 +209,31 @@ def detect_running(ports: list[int], configs) -> dict[str, RunningProc]:
         port_up = _port_listening(port)
         wrapper_up = bool(wrapper_pid) and _pid_alive(wrapper_pid)
         if not port_up and not wrapper_up:
-            # Both signals say the snapshot is gone. Apply a 60s grace
-            # period from started_at so we never wipe a manifest while
-            # the wrapper is still spinning up vLLM, where port_up can
-            # flap (listen() called but accept() not yet running) and
-            # pid_alive can briefly miss the wrapper on slow tasklist.
-            # Issue #12: TUI-launched snapshots had their manifest GC'd
-            # in the first poll, leaving the card stuck on LOADING.
+            # Both signals say the snapshot is gone. Apply a generous
+            # grace from started_at so we never wipe a manifest while
+            # the wrapper is still spinning up vLLM. The 60s grace from
+            # v1.3.8 was too short, on Ampere with cold torch.compile +
+            # weight load + warmup, vLLM doesn't bind the port for
+            # 120-180s after launch (issue #12 reporter measured 135s).
+            # During that window port_up=False (vLLM hasn't bound yet)
+            # and wrapper_up may flap on slow tasklist, so the GC fires
+            # and wipes the manifest. 300s covers any realistic boot.
             mf_path = mf.get("__path__")
-            young = False
+            age = -1.0
             try:
                 import datetime as _dt
                 started = _dt.datetime.fromisoformat(mf.get("started_at") or "")
-                young = (_dt.datetime.now() - started).total_seconds() < 60
+                age = (_dt.datetime.now() - started).total_seconds()
             except (ValueError, TypeError):
                 pass
-            if young:
-                continue
             _diag_log(
-                f"GC manifest {mf_path} port={port} "
-                f"wrapper_pid={wrapper_pid} port_up={port_up} wrapper_up={wrapper_up}"
+                f"manifest {Path(mf_path).name if mf_path else '?'} "
+                f"port={port} wrapper_pid={wrapper_pid} "
+                f"port_up={port_up} wrapper_up={wrapper_up} age={age:.0f}s "
+                f"-> {'GC' if age >= 300 else 'keep (in grace)'}"
             )
+            if age < 300:
+                continue
             try: Path(mf_path).unlink()
             except (OSError, TypeError): pass
             continue

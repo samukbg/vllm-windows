@@ -967,10 +967,30 @@ def print_port_collision_banner(port: int) -> None:
 
 
 def clear_manifest(port: int) -> None:
+    """Remove the snapshot's runtime manifest.
+
+    Called from the snapshot's `finally` block when the wrapper python
+    exits (vLLM child died, Ctrl-C, port-collision exit). The diag log
+    line lets us tell from `logs/launcher.diag.log` whether the wrapper
+    ever exited and when, which was the missing data point in issue #12.
+    """
+    target = manifest_path_for(port)
+    existed = target.exists()
     try:
-        manifest_path_for(port).unlink()
+        target.unlink()
     except FileNotFoundError:
         pass
+    except OSError:
+        pass
+    try:
+        import datetime as _dt
+        line = (
+            f"{_dt.datetime.now().isoformat(timespec='seconds')} "
+            f"snapshot clear_manifest port={port} existed={existed}\n"
+        )
+        (_resolve_logs_dir() / "launcher.diag.log").open(
+            "a", encoding="utf-8"
+        ).write(line)
     except OSError:
         pass
 
