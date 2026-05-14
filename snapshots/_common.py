@@ -494,6 +494,62 @@ _BAD_PATH_FRAGMENTS = (
 _CUDA_ENV_PREFIXES = ("CUDA_", "NVCC_", "NVTOOLSEXT", "CUDNN_")
 
 
+def _find_or_make_spaceless_cuda13() -> Path | None:
+    """Return a Path to a CUDA 13.x toolkit at a path with no spaces.
+
+    FlashInfer's JIT generates ``build.ninja`` with include paths inherited
+    from ``CUDA_PATH``. The generated ninja passes those paths to ``cl.exe``
+    UNQUOTED. If CUDA_PATH contains spaces (the Windows default install at
+    ``C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.x``), cl
+    splits on the space and fails to find headers (``cublasLt.h``). The
+    ``trtllm_utils.dll`` build loops indefinitely on every boot (2-3 h
+    observed by users), so vLLM never reaches "Application startup
+    complete." See GitHub issue #18 for the full trace.
+
+    This helper finds a real CUDA 13.x toolkit and, if it's at a spaced
+    path, creates a junction at ``C:\\cuda13<N>`` so ``cl.exe`` sees a
+    space-free include path. Junctions don't need admin on Windows.
+
+    Returns the spaceless Path, or None if no CUDA 13.x toolkit is found.
+    """
+    # 1) Honor an existing spaceless junction first.
+    for cand in (Path(r"C:\cuda132"), Path(r"C:\cuda131"), Path(r"C:\cuda13")):
+        if (cand / "bin" / "nvcc.exe").is_file():
+            return cand
+
+    # 2) Find a real CUDA 13.x toolkit under the standard NVIDIA install root.
+    sys_root = Path(r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA")
+    if not sys_root.is_dir():
+        return None
+    real: Path | None = None
+    for v in sorted(sys_root.iterdir(), reverse=True):
+        if v.name.startswith("v13.") and (v / "bin" / "nvcc.exe").is_file():
+            real = v
+            break
+    if real is None:
+        return None
+
+    # 3) If the real path has no spaces, just use it.
+    if " " not in str(real):
+        return real
+
+    # 4) Otherwise create a junction at C:\cuda13<minor> for spaceless access.
+    minor = real.name[len("v13."):]
+    target = Path(rf"C:\cuda13{minor}")
+    if target.exists():
+        return target if (target / "bin" / "nvcc.exe").is_file() else None
+    try:
+        subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(target), str(real)],
+            check=True, capture_output=True,
+        )
+    except Exception as e:
+        print(f"[warn] could not create CUDA 13 junction at {target} -> {real}: {e!r}",
+              file=sys.stderr)
+        return None
+    return target if (target / "bin" / "nvcc.exe").is_file() else None
+
+
 def clean_cuda_env(base: "dict[str, str] | None" = None) -> "dict[str, str]":
     """Build a clean env for the vLLM subprocess, scrubbing system CUDA
     pollution.
@@ -538,16 +594,28 @@ def clean_cuda_env(base: "dict[str, str] | None" = None) -> "dict[str, str]":
     keep = [p for p in path_parts
             if p and not any(b.lower() in p.lower() for b in _BAD_PATH_FRAGMENTS)]
 
-    # 3) Prepend the cu13 shim if torch is cu13 and the shim is built.
+    # 3) Prefer a real spaceless CUDA 13.x toolkit when available -- gives
+    #    FlashInfer's JIT a working nvcc + headers AND a space-free path
+    #    that cl.exe won't mis-tokenize. Fall back to the bundled cu13 shim
+    #    when no real toolkit is found (inference-only setups). See
+    #    _find_or_make_spaceless_cuda13() docstring + GitHub issue #18.
     cuda_major = _torch_cuda_major()
     if cuda_major and cuda_major >= 13:
-        shim = _cuda13_shim_dir()
-        if shim is not None:
-            base["CUDA_PATH"] = str(shim)
-            base["CUDA_HOME"] = str(shim)
-            shim_bin = str(shim / "bin")
-            if shim_bin not in keep:
-                keep = [shim_bin] + keep
+        real = _find_or_make_spaceless_cuda13()
+        if real is not None:
+            base["CUDA_PATH"] = str(real)
+            base["CUDA_HOME"] = str(real)
+            real_bin = str(real / "bin")
+            if real_bin not in keep:
+                keep = [real_bin] + keep
+        else:
+            shim = _cuda13_shim_dir()
+            if shim is not None:
+                base["CUDA_PATH"] = str(shim)
+                base["CUDA_HOME"] = str(shim)
+                shim_bin = str(shim / "bin")
+                if shim_bin not in keep:
+                    keep = [shim_bin] + keep
 
     base["PATH"] = os.pathsep.join(keep)
     return base
