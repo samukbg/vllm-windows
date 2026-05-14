@@ -621,6 +621,57 @@ def clean_cuda_env(base: "dict[str, str] | None" = None) -> "dict[str, str]":
     return base
 
 
+def preflight_driver_or_die(min_version: float = 596.0) -> None:
+    """Read driver version from nvidia-smi and hard-exit if below ``min_version``.
+
+    The Blackwell wheel ships PTX built with the CUDA 13.2 toolkit. Running
+    it under an older driver triggers ``cudaErrorUnsupportedPtxVersion``
+    (typically at ``gptq_marlin_repack``) about 30 seconds into boot, well
+    after weights are already on the GPU. The error message points at the
+    PTX docs, not at the actual cause (driver too old). Catching it here
+    turns a 30-second opaque failure into an immediate clear message.
+
+    Reported in GitHub issue #16. Returns silently when ``nvidia-smi`` is
+    unavailable or returns no parsable version, on the principle that an
+    unknown-version state shouldn't block boot.
+    """
+    try:
+        out = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
+            text=True, stderr=subprocess.DEVNULL, timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return
+    first = (out.splitlines() or [""])[0].strip()
+    if not first:
+        return
+    try:
+        version = float(first.split(".")[0] + "." + first.split(".")[1]) \
+            if "." in first else float(first)
+    except (ValueError, IndexError):
+        return
+    if version >= min_version:
+        return
+    print("=" * 72, file=sys.stderr, flush=True)
+    print(f"[preflight ERROR] NVIDIA driver {first} is too old for this wheel.",
+          file=sys.stderr, flush=True)
+    print(f"[preflight ERROR] The Blackwell zip needs driver {min_version:g} or newer",
+          file=sys.stderr, flush=True)
+    print("[preflight ERROR] (the bundled wheel ships PTX built with CUDA 13.2,",
+          file=sys.stderr, flush=True)
+    print("[preflight ERROR] which older drivers cannot load).",
+          file=sys.stderr, flush=True)
+    print("[preflight ERROR]", file=sys.stderr, flush=True)
+    print("[preflight ERROR] Update the NVIDIA driver from",
+          file=sys.stderr, flush=True)
+    print("[preflight ERROR]   https://www.nvidia.com/Download/index.aspx",
+          file=sys.stderr, flush=True)
+    print("[preflight ERROR] then re-launch. See docs/BLACKWELL.md for details.",
+          file=sys.stderr, flush=True)
+    print("=" * 72, file=sys.stderr, flush=True)
+    sys.exit(1)
+
+
 def preflight_sm120a_or_die(env: "dict[str, str]", *, vllm_python: "Path | str") -> None:
     """Spawn a 5-second subprocess under ``env`` and verify FlashInfer
     can dispatch to ``sm_120a`` on cuda:0. Hard-exit otherwise.
