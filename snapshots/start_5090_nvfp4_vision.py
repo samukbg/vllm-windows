@@ -33,7 +33,6 @@ from _common import (
     enhanced_jinja_path, resolve_cuda_visible_devices,
     print_port_collision_banner, random_dp_rpc_port,
     cache_env_stamp_check, clean_cuda_env, preflight_sm120a_or_die,
-    preflight_driver_or_die,
 )
 
 MODEL_PATH = os.environ.get(
@@ -104,11 +103,6 @@ def main() -> int:
         return 1
 
     cache_env_stamp_check(snapshot_py=Path(__file__))
-
-    # Driver check first: the cu13.2 wheel needs NVIDIA driver 596+ to
-    # load its PTX. Older drivers fail ~30s into boot with an opaque
-    # cudaErrorUnsupportedPtxVersion. See GitHub issue #16.
-    preflight_driver_or_die()
 
     env = clean_cuda_env(os.environ)
     # FLASHINFER_CUDA_ARCH_LIST was set at the top of main() and is

@@ -20,10 +20,10 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 # Reuse the existing Windows vLLM install so this folder stays rollbackable.
-from _common import VENV, VLLM_EXE, MODEL_PATH, VCVARS, msvc_env, cuda_env, flashinfer_sampler_env, log_path_for, enhanced_jinja_path, resolve_cuda_visible_devices, print_port_collision_banner
+from _common import VENV, VLLM_EXE, MODEL_PATH, VCVARS, msvc_env, cuda_env, clean_cuda_env, flashinfer_sampler_env, log_path_for, enhanced_jinja_path, resolve_cuda_visible_devices, print_port_collision_banner
 SERVED_NAME = "qwen3.6-27b-autoround"
 HOST = "0.0.0.0"
-PORT = 5001  # different from vllm-windows (5000), so both can coexist if needed
+PORT = 11434  # different from vllm-windows (5000), so both can coexist if needed
 
 # ---- Parallelism ------------------------------------------------------------
 # MTP spec-decode is NOT compatible with PP on Qwen3-Next (NotImplementedError
@@ -39,7 +39,7 @@ NUM_SPEC_TOKENS = 3
 # Single-card Lorbus weight footprint: ~16.9 GB. With fp8_e5m2 KV and
 # gpu-memory-utilization=0.95 we expect ~40-60K tokens of KV. Start ctx modest
 # and grow after first successful boot.
-CTX = 32000
+CTX = 65536
 GPU_MEM_UTIL = 0.92  # GPU1, vLLM sees free=22.76 GiB after CUDA init → 0.948 ceiling
 KV_CACHE_DTYPE = "fp8_e4m3"  # TRITON_ATTN only accepts fp8/fp8_e4m3 (not e5m2).
 MAX_NUM_BATCHED_TOKENS = 4128
@@ -71,14 +71,15 @@ def main() -> int:
         except EOFError: pass
         return 1
 
-    env = os.environ.copy()
+    # Scrub system CUDA pollution from the environment before launching.
+    env = clean_cuda_env(os.environ)
     # Overlay MSVC dev env so FlashInfer can JIT-compile kernels (needed for
     # fp8 KV cache which triggers a new prefill kernel build at first request).
     _msvc = msvc_env()
     env.update(_msvc)
     # vLLM 0.19 unconditionally imports flashinfer in the sampler;
     # flashinfer's Windows path raises if CUDA_LIB_PATH is unset.
-    env.update(cuda_env())
+    env.update(cuda_env(env))
     # Toggle the flashinfer sampler based on MSVC + ninja availability,
     # since flashinfer JIT-compiles a sampling module at first profile_run.
     env.update(flashinfer_sampler_env(_msvc))

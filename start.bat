@@ -2,21 +2,13 @@
 REM ===================================================================
 REM  qwen3.6-windows-server, top-level entrypoint.
 REM
-REM  Delegates to launcher\start.bat. Both files are intentionally
-REM  available so a user can double-click either one and get the same
-REM  result. Kept thin so the two never drift apart.
-REM
-REM  Note: avoids parenthesized IF blocks because the install path may
-REM  contain unbalanced parens (e.g. "C:\Program Files (x86)\vllm\")
-REM  which break cmd.exe's parser inside (...).
+REM  Modified to run the vLLM server at port 11434 by default.
 REM ===================================================================
 setlocal
 set "HERE=%~dp0"
-if "%HERE:~-1%"=="\" set "HERE=%HERE:~0,-1%"
-
 if not exist "%HERE%\launcher\start.bat" goto :missing
 
-call "%HERE%\launcher\start.bat" %*
+call "%HERE%\launcher\start.bat" --auto-download --snapshot start_72tps %*
 exit /b %ERRORLEVEL%
 
 :missing

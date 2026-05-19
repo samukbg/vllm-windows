@@ -36,7 +36,7 @@ windows:
       mem_util: 0.948
       mtp_n: 6
       ctx: 90000
-      port: 5001
+      port: 11434
       decode_tps: 64.5
       prefill_tps_cold: 965
       notes: |
@@ -63,7 +63,7 @@ windows:
       mem_util: 0.948
       mtp_n: 3
       ctx: 127000
-      port: 5001
+      port: 11434
       decode_tps: 53.4
       prefill_tps_cold: 965
       notes: Largest single-GPU context. Trades decode speed for headroom.
@@ -80,7 +80,7 @@ windows:
       mem_util: 0.948
       mtp_n: 4
       ctx: 120000
-      port: 5001
+      port: 11434
       decode_tps: 58.3
       prefill_tps_cold: 965
       notes: Compromise between speed and ctx headroom.
@@ -116,7 +116,7 @@ windows:
       mem_util: 0.92
       mtp_n: 6
       ctx: 50000
-      port: 5001
+      port: 11434
       decode_tps: 56.9
       decode_tps_short: 75.1
       prefill_tps_cold: null
@@ -144,7 +144,7 @@ windows:
       mem_util: 0.948
       mtp_n: 3
       ctx: 127000
-      port: 5001
+      port: 11434
       decode_tps: 53.4
       prefill_tps_cold: 965
       notes: |
@@ -167,7 +167,7 @@ windows:
       mem_util: 0.948
       mtp_n: 3
       ctx: 127000
-      port: 5001
+      port: 11434
       decode_tps: 53.4
       prefill_tps_cold: 965
       notes: |
@@ -189,7 +189,7 @@ windows:
       mem_util: 0.948
       mtp_n: 3
       ctx: 127000
-      port: 5001
+      port: 11434
       decode_tps: 53.4
       prefill_tps_cold: 965
       notes: |
@@ -213,7 +213,7 @@ windows:
       mem_util: 0.94
       mtp_n: 3
       ctx: 121000
-      port: 5001
+      port: 11434
       decode_tps: 50.7
       prefill_tps_cold: 845
       power_cap_w: 250
@@ -231,7 +231,7 @@ windows:
       mem_util: 0.94
       mtp_n: 3
       ctx: 120000
-      port: 5001
+      port: 11434
       decode_tps: null
       prefill_tps_cold: null
       notes: Old ctx ladder rung.
@@ -248,7 +248,7 @@ windows:
       mem_util: 0.94
       mtp_n: 3
       ctx: 100000
-      port: 5001
+      port: 11434
       decode_tps: null
       prefill_tps_cold: null
       notes: Old ctx ladder rung.
@@ -265,7 +265,7 @@ windows:
       mem_util: 0.94
       mtp_n: 3
       ctx: 64000
-      port: 5001
+      port: 11434
       decode_tps: null
       prefill_tps_cold: null
       notes: Old ctx ladder rung.
@@ -275,14 +275,14 @@ windows:
       tier: legacy
       status: superseded
       bat: '${SNAPSHOTS_DIR}\start_72tps.bat'
-      py:  '${SNAPSHOTS_DIR}\start.py'
+      py:  '${SNAPSHOTS_DIR}\start_72tps.py'
       gpu: GPU1
       tp: 1
       pp: 1
       mem_util: 0.92
       mtp_n: 3
-      ctx: 32000
-      port: 5001
+      ctx: 65536
+      port: 11434
       decode_tps_long: 50
       decode_tps_short: 72.5
       power_cap_w: 250
@@ -301,7 +301,7 @@ windows:
       mem_util: 0.95
       mtp_n: 6
       ctx: 200000
-      port: 5001
+      port: 11434
       decode_tps: 91.9
       prefill_tps_cold: 5300
       power_cap_w: 575
