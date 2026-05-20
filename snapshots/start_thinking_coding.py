@@ -25,14 +25,14 @@ HERE = Path(__file__).resolve().parent
 from _common import VENV, VLLM_EXE, MODEL_PATH, VCVARS, msvc_env, cuda_env, flashinfer_sampler_env, log_path_for, enhanced_jinja_path, resolve_cuda_visible_devices, print_port_collision_banner
 SERVED_NAME = "qwen3.6-27b-autoround"
 HOST = "0.0.0.0"
-PORT = 5001
+PORT = 11434
 
 TP = 1
 PP = 1
 USE_MTP = True
 NUM_SPEC_TOKENS = 3
 
-CTX = 127000
+CTX = 65536
 GPU_MEM_UTIL = 0.948
 KV_CACHE_DTYPE = "fp8_e4m3"
 MAX_NUM_BATCHED_TOKENS = 4128

@@ -61,3 +61,11 @@ GEMINI.md
 
 # Bundled vLLM wheel, built separately, downloaded at release time
 wheels/vllm*.whl
+
+# Local artifacts and binaries
+python/
+cuda_shim/
+user_config.json
+start_vllm_wrapper.bat
+terminal/settings/state.json
+VERSION

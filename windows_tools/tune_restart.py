@@ -59,12 +59,9 @@ def main() -> int:
     if not snapshot.exists():
         print(f"[tune] snapshot not found: {snapshot}", file=sys.stderr)
         return 1
-    # Support both developer (Scripts/python.exe) and portable (python.exe) layouts.
     venv_py = Path(args.venv) / "Scripts" / "python.exe"
     if not venv_py.exists():
-        venv_py = Path(args.venv) / "python.exe"
-    if not venv_py.exists():
-        print(f"[tune] python.exe not found at {args.venv}\\Scripts\\python.exe or {args.venv}\\python.exe", file=sys.stderr)
+        print(f"[tune] python.exe not found at {venv_py}", file=sys.stderr)
         return 1
     log_path = Path(args.log) if args.log else REPO / "logs" / f"vllm_server.{args.port}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)

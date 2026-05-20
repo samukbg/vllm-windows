@@ -1,26 +1,34 @@
 {
     "$help": "https://aka.ms/terminal-documentation",
     "$schema": "https://aka.ms/terminal-profiles-schema",
+    "actions": [],
     "alwaysShowTabs": false,
-    "showTabsInTitlebar": true,
     "copyFormatting": "none",
     "copyOnSelect": false,
     "defaultProfile": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}",
-    "initialRows": 32,
     "initialCols": 120,
-    "keybindings":
+    "initialRows": 32,
+    "keybindings": 
     [
-        { "id": "Terminal.CopyToClipboard",      "keys": "ctrl+c" },
-        { "id": "Terminal.PasteFromClipboard",   "keys": "ctrl+v" }
+        {
+            "id": "Terminal.CopyToClipboard",
+            "keys": "ctrl+c"
+        },
+        {
+            "id": "Terminal.PasteFromClipboard",
+            "keys": "ctrl+v"
+        }
     ],
-    "newTabMenu":
+    "newTabMenu": 
     [
-        { "type": "remainingProfiles" }
+        {
+            "type": "remainingProfiles"
+        }
     ],
-    "profiles":
+    "profiles": 
     {
         "defaults": {},
-        "list":
+        "list": 
         [
             {
                 "commandline": "%SystemRoot%\\System32\\cmd.exe",
@@ -33,9 +41,40 @@
                 "guid": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}",
                 "hidden": false,
                 "name": "Windows PowerShell"
+            },
+            {
+                "guid": "{b453ae62-4e3d-5e58-b989-0a998ec441b8}",
+                "hidden": false,
+                "name": "Azure Cloud Shell",
+                "source": "Windows.Terminal.Azure"
+            },
+            {
+                "guid": "{b6ef0705-a13a-5119-afb3-0c6bc2fc69ae}",
+                "hidden": false,
+                "name": "Developer Command Prompt for VS 2022",
+                "source": "Windows.Terminal.VisualStudio"
+            },
+            {
+                "guid": "{1cd5260e-4c84-555b-9183-413d643885a4}",
+                "hidden": false,
+                "name": "Developer PowerShell for VS 2022",
+                "source": "Windows.Terminal.VisualStudio"
+            },
+            {
+                "guid": "{3d6a9017-d013-5133-a7e1-622b8912983f}",
+                "hidden": false,
+                "name": "octanode",
+                "source": "Microsoft.WSL"
+            },
+            {
+                "guid": "{6e58837c-4aa2-583c-8ade-dc271ab85d5c}",
+                "hidden": false,
+                "name": "salad-enterprise-linux",
+                "source": "Microsoft.WSL"
             }
         ]
     },
     "schemes": [],
+    "showTabsInTitlebar": true,
     "themes": []
 }
