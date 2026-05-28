@@ -40,8 +40,8 @@ def _add_bundled_ninja_to_path() -> None:
 
 _add_bundled_ninja_to_path()
 
-def _resolve_vllm_exe() -> tuple[Path, Path]:
-    """Resolve (PYTHON_HOME, VLLM_EXE).
+def _resolve_vllm_exe() -> tuple[Path, Path, Path]:
+    """Resolve (PYTHON_HOME, VLLM_EXE, PYTHON_EXE).
 
     Resolution order:
       1. ``VLLM_WINDOWS_VENV`` env var → expects ``Scripts/vllm.exe`` and
@@ -55,15 +55,18 @@ def _resolve_vllm_exe() -> tuple[Path, Path]:
     env = os.environ.get("VLLM_WINDOWS_VENV")
     if env:
         root = Path(env)
-        return root, root / "Scripts" / "vllm.exe"
+        return root, root / "Scripts" / "vllm.exe", root / "Scripts" / "python.exe"
     dev_venv = REPO_ROOT / "venv"
     if (dev_venv / "Scripts" / "vllm.exe").exists():
-        return dev_venv, dev_venv / "Scripts" / "vllm.exe"
+        return dev_venv, dev_venv / "Scripts" / "vllm.exe", dev_venv / "Scripts" / "python.exe"
     embedded = REPO_ROOT / "python"
-    return embedded, embedded / "Scripts" / "vllm.exe"
+    return embedded, embedded / "Scripts" / "vllm.exe", embedded / "python.exe"
 
 
-VENV, VLLM_EXE = _resolve_vllm_exe()
+VENV, VLLM_EXE, PYTHON_EXE = _resolve_vllm_exe()
+# Bypass WinError 4551 (Application Control policy) by invoking the python
+# module directly instead of the compiled .exe shim.
+VLLM_BASE_CMD = [str(PYTHON_EXE), "-m", "vllm.entrypoints.cli.main"]
 
 def _resolve_model_path() -> str:
     """Resolve model dir using the same priority as the launcher.

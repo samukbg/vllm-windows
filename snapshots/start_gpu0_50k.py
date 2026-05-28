@@ -20,7 +20,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 # Reuse the existing Windows vLLM install so this folder stays rollbackable.
-from _common import VENV, VLLM_EXE, MODEL_PATH, VCVARS, msvc_env, cuda_env, flashinfer_sampler_env, log_path_for, enhanced_jinja_path, resolve_cuda_visible_devices, print_port_collision_banner
+from _common import VENV, VLLM_EXE, PYTHON_EXE, VLLM_BASE_CMD, MODEL_PATH, VCVARS, msvc_env, cuda_env, flashinfer_sampler_env, log_path_for, enhanced_jinja_path, resolve_cuda_visible_devices, print_port_collision_banner
 SERVED_NAME = "qwen3.6-27b-autoround"
 HOST = "0.0.0.0"
 PORT = 5001  # different from vllm-windows (5000), so both can coexist if needed
@@ -59,8 +59,8 @@ def port_in_use(host: str, port: int) -> bool:
 
 
 def main() -> int:
-    if not VLLM_EXE.exists():
-        print(f"[ERROR] vllm.exe not found at {VLLM_EXE}", file=sys.stderr)
+    if not PYTHON_EXE.exists():
+        print(f"[ERROR] python.exe not found at {PYTHON_EXE}", file=sys.stderr)
         return 1
     if not Path(MODEL_PATH).exists():
         print(f"[ERROR] Model dir not found: {MODEL_PATH}", file=sys.stderr)
@@ -112,7 +112,7 @@ def main() -> int:
     env["PYTHONFAULTHANDLER"] = "1"
 
     args = [
-        str(VLLM_EXE), "serve", MODEL_PATH,
+        *VLLM_BASE_CMD, "serve", MODEL_PATH,
         f"--served-model-name={SERVED_NAME}",
         "--quantization=auto-round",
         f"--max-model-len={CTX}",

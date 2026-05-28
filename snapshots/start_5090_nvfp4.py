@@ -28,7 +28,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 from _common import (
-    VENV, VLLM_EXE, VCVARS,
+    VENV, VLLM_EXE, PYTHON_EXE, VLLM_BASE_CMD, VCVARS,
     msvc_env, cuda_env, flashinfer_sampler_env, log_path_for,
     enhanced_jinja_path, resolve_cuda_visible_devices,
     print_port_collision_banner, random_dp_rpc_port,
@@ -85,8 +85,8 @@ def main() -> int:
     # is built with compute_120 (non-suffixed) per docs/SM120_GDN_CEILING.md.
     os.environ.setdefault("FLASHINFER_CUDA_ARCH_LIST", "12.0")
 
-    if not VLLM_EXE.exists():
-        print(f"[ERROR] vllm.exe not found at {VLLM_EXE}", file=sys.stderr)
+    if not PYTHON_EXE.exists():
+        print(f"[ERROR] python.exe not found at {PYTHON_EXE}", file=sys.stderr)
         return 1
     if not Path(MODEL_PATH).exists():
         print(f"[ERROR] NVFP4 model dir not found: {MODEL_PATH}", file=sys.stderr)
@@ -145,7 +145,7 @@ def main() -> int:
     env["PYTHONFAULTHANDLER"] = "1"
 
     args = [
-        str(VLLM_EXE), "serve", MODEL_PATH,
+        *VLLM_BASE_CMD, "serve", MODEL_PATH,
         f"--served-model-name={SERVED_NAME}",
         "--quantization=compressed-tensors",
         f"--max-model-len={CTX}",

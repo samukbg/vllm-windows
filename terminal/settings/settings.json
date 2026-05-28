@@ -71,6 +71,30 @@
                 "hidden": false,
                 "name": "salad-enterprise-linux",
                 "source": "Microsoft.WSL"
+            },
+            {
+                "guid": "{7a4b8811-51b4-58a5-bc07-7e68664bfb59}",
+                "hidden": false,
+                "name": "Developer Command Prompt for VS 2022",
+                "source": "Windows.Terminal.VisualStudio"
+            },
+            {
+                "guid": "{5ae63dba-c852-53c9-a825-e2f4c4a3be1e}",
+                "hidden": false,
+                "name": "Developer PowerShell for VS 2022",
+                "source": "Windows.Terminal.VisualStudio"
+            },
+            {
+                "guid": "{57df6c30-ab10-5514-8bd7-0c1789def64d}",
+                "hidden": false,
+                "name": "salad-enterprise-linux",
+                "source": "Microsoft.WSL"
+            },
+            {
+                "guid": "{e24300b6-00a3-5462-b13d-71fac9a545c7}",
+                "hidden": false,
+                "name": "octanode1",
+                "source": "Microsoft.WSL"
             }
         ]
     },
