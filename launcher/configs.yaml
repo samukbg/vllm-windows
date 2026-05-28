@@ -35,7 +35,7 @@ windows:
       pp: 1
       mem_util: 0.948
       mtp_n: 6
-      ctx: 65536
+      ctx: 57344
       port: 11434
       decode_tps: 64.5
       prefill_tps_cold: 965
@@ -281,7 +281,7 @@ windows:
       pp: 1
       mem_util: 0.92
       mtp_n: 3
-      ctx: 65536
+      ctx: 57344
       port: 11434
       decode_tps_long: 50
       decode_tps_short: 72.5

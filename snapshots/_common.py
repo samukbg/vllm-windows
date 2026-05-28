@@ -411,7 +411,7 @@ def _cuda13_shim_dir() -> Path | None:
     return None
 
 
-def cuda_env() -> dict:
+def cuda_env(base_env: dict[str, str] | None = None) -> dict:
     """Set CUDA_PATH / CUDA_LIB_PATH so flashinfer's import-time check passes.
 
     flashinfer reads CUDA_HOME / CUDA_ROOT / CUDA_PATH / CUDA_LIB_PATH (in
@@ -432,6 +432,8 @@ def cuda_env() -> dict:
       5. Fallback: the embedded Python dir. The fake path satisfies
          flashinfer's non-empty check; JIT paths will fail loudly later.
     """
+    if base_env is None:
+        base_env = os.environ
     cuda_major = _torch_cuda_major()
     expected_dll = f"cudart64_{cuda_major if cuda_major and cuda_major >= 12 else 12}.dll"
 
@@ -444,15 +446,15 @@ def cuda_env() -> dict:
                 "CUDA_LIB_PATH": str(shim),
             }
 
-    if os.environ.get("CUDA_LIB_PATH"):
-        _ensure_cudart_alias(os.environ["CUDA_LIB_PATH"])
+    if base_env.get("CUDA_LIB_PATH"):
+        _ensure_cudart_alias(base_env["CUDA_LIB_PATH"])
         return {}
 
     def _has_expected_dll(root: str | Path) -> bool:
         return (Path(root) / "bin" / expected_dll).is_file()
 
     for var in ("CUDA_PATH", "CUDA_HOME"):
-        val = os.environ.get(var)
+        val = base_env.get(var)
         if val and Path(val).is_dir() and _has_expected_dll(val):
             _ensure_cudart_alias(val)
             return {"CUDA_LIB_PATH": val}
@@ -476,7 +478,12 @@ def cuda_env() -> dict:
         "will fail. Install CUDA Toolkit to fully clear this.",
         file=sys.stderr,
     )
-    return {"CUDA_LIB_PATH": str(REPO_ROOT / "python")}
+    # Ensure REPO_ROOT/python/bin exists and has the DLLs if we fall back.
+    placeholder_root = REPO_ROOT / "python"
+    _ensure_cudart_alias(placeholder_root)
+    # FlashInfer's Windows JIT goes up two levels from CUDA_LIB_PATH to find the root.
+    # We point to bin/x64 so that (.. / ..) lands on placeholder_root.
+    return {"CUDA_LIB_PATH": str(placeholder_root / "bin" / "x64")}
 
 
 _BAD_PATH_FRAGMENTS = (
