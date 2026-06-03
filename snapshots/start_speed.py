@@ -96,6 +96,7 @@ def main() -> int:
         return 1
     env["CUDA_VISIBLE_DEVICES"] = _cvd
     env["VLLM_SLEEP_WHEN_IDLE"] = "1"
+    env["VLLM_IDLE_TIMEOUT_S"] = "15"
     env["VLLM_ENABLE_CUDAGRAPH_GC"] = "1"
     env["VLLM_ALLOW_LONG_MAX_MODEL_LEN"] = "1"
     env["VLLM_MARLIN_USE_ATOMIC_ADD"] = "1"
