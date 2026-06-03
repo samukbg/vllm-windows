@@ -109,7 +109,7 @@ def main() -> int:
     # Windows Gloo stability (inherited from vllm-windows findings):
     env["USE_LIBUV"] = "0"
     env["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "0"
-    env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+    # env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True" # Incompatible with sleep mode's CuMemAllocator
     env["NCCL_ASYNC_ERROR_HANDLING"] = "0"
     env["PYTHONFAULTHANDLER"] = "1"
 
@@ -141,6 +141,7 @@ def main() -> int:
         "--trust-remote-code",
         "--attention-backend=TRITON_ATTN",
         "--no-use-tqdm-on-load",
+        # "--enable-sleep-mode", # Broken on Windows wheel (missing symbols in cumem_allocator.pyd)
         f"--host={HOST}",
         f"--port={PORT}",
     ]

@@ -413,6 +413,7 @@ def _cuda13_shim_dir() -> Path | None:
 
 def cuda_env(base_env: dict[str, str] | None = None) -> dict:
     """Set CUDA_PATH / CUDA_LIB_PATH so flashinfer's import-time check passes.
+    Also sets VLLM_CUDART_SO_PATH to ensure internal vLLM lookups succeed.
 
     flashinfer reads CUDA_HOME / CUDA_ROOT / CUDA_PATH / CUDA_LIB_PATH (in
     that order), then loads ``<root>/bin/cudart64_<N>.dll`` where N is
@@ -435,20 +436,33 @@ def cuda_env(base_env: dict[str, str] | None = None) -> dict:
     if base_env is None:
         base_env = os.environ
     cuda_major = _torch_cuda_major()
-    expected_dll = f"cudart64_{cuda_major if cuda_major and cuda_major >= 12 else 12}.dll"
+    major_str = str(cuda_major if cuda_major and cuda_major >= 12 else 12)
+    expected_dll = f"cudart64_{major_str}.dll"
+
+    def _make_env(root: str | Path, extra: dict | None = None) -> dict:
+        res = extra.copy() if extra else {}
+        dll_path = Path(root) / "bin" / expected_dll
+        if dll_path.is_file():
+            res["VLLM_CUDART_SO_PATH"] = str(dll_path)
+        return res
 
     # Step 1: prefer the launcher's CUDA 13 shim when running cu13 torch.
     if cuda_major and cuda_major >= 13:
         shim = _cuda13_shim_dir()
         if shim is not None:
-            return {
+            return _make_env(shim, {
                 "CUDA_PATH": str(shim),
                 "CUDA_LIB_PATH": str(shim),
-            }
+            })
 
     if base_env.get("CUDA_LIB_PATH"):
-        _ensure_cudart_alias(base_env["CUDA_LIB_PATH"])
-        return {}
+        lib_path = base_env["CUDA_LIB_PATH"]
+        _ensure_cudart_alias(lib_path)
+        # If it's bin/x64, the DLL is one level up in bin/
+        dll_root = Path(lib_path)
+        if dll_root.name.lower() == "x64" and dll_root.parent.name.lower() == "bin":
+            dll_root = dll_root.parent.parent
+        return _make_env(dll_root)
 
     def _has_expected_dll(root: str | Path) -> bool:
         return (Path(root) / "bin" / expected_dll).is_file()
@@ -457,7 +471,7 @@ def cuda_env(base_env: dict[str, str] | None = None) -> dict:
         val = base_env.get(var)
         if val and Path(val).is_dir() and _has_expected_dll(val):
             _ensure_cudart_alias(val)
-            return {"CUDA_LIB_PATH": val}
+            return _make_env(val, {"CUDA_LIB_PATH": val})
     nvidia_root = Path(r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA")
     if nvidia_root.is_dir():
         versions = sorted(
@@ -468,7 +482,7 @@ def cuda_env(base_env: dict[str, str] | None = None) -> dict:
         for v in versions:
             if _has_expected_dll(v):
                 _ensure_cudart_alias(v)
-                return {"CUDA_LIB_PATH": str(v), "CUDA_PATH": str(v)}
+                return _make_env(v, {"CUDA_LIB_PATH": str(v), "CUDA_PATH": str(v)})
     print(
         f"[warn] No CUDA Toolkit found with {expected_dll} (checked CUDA_PATH, "
         r"CUDA_HOME, and C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\). "
@@ -483,7 +497,7 @@ def cuda_env(base_env: dict[str, str] | None = None) -> dict:
     _ensure_cudart_alias(placeholder_root)
     # FlashInfer's Windows JIT goes up two levels from CUDA_LIB_PATH to find the root.
     # We point to bin/x64 so that (.. / ..) lands on placeholder_root.
-    return {"CUDA_LIB_PATH": str(placeholder_root / "bin" / "x64")}
+    return _make_env(placeholder_root, {"CUDA_LIB_PATH": str(placeholder_root / "bin" / "x64")})
 
 
 _BAD_PATH_FRAGMENTS = (
