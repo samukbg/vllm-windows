@@ -362,25 +362,35 @@ def _ensure_cudart_alias(cuda_path: str | Path) -> None:
     """
     try:
         bin_dir = Path(cuda_path) / "bin"
+        bin_dir.mkdir(parents=True, exist_ok=True)
         target = bin_dir / "cudart64_120.dll"
-        if target.exists():
-            return
         source = bin_dir / "cudart64_12.dll"
         if not source.exists():
+            try:
+                import torch
+                torch_lib = Path(torch.__file__).resolve().parent / "lib"
+                torch_dll = torch_lib / "cudart64_12.dll"
+                if torch_dll.is_file():
+                    shutil.copyfile(torch_dll, source)
+                    print(f"[info] copied {torch_dll} -> {source}", flush=True)
+            except Exception:
+                pass
+        if target.exists():
             return
-        try:
-            shutil.copyfile(source, target)
-            print(f"[info] aliased {source.name} -> {target.name} "
-                  "(flashinfer hardcodes the old name)", flush=True)
-        except OSError as e:
-            print(
-                f"[warn] flashinfer expects {target.name} but only "
-                f"{source.name} is present, and the alias copy failed "
-                f"({e.__class__.__name__}). Run this once from an "
-                f"elevated cmd to fix permanently:\n"
-                f'       copy "{source}" "{target}"',
-                file=sys.stderr, flush=True,
-            )
+        if source.exists():
+            try:
+                shutil.copyfile(source, target)
+                print(f"[info] aliased {source.name} -> {target.name} "
+                      "(flashinfer hardcodes the old name)", flush=True)
+            except OSError as e:
+                print(
+                    f"[warn] flashinfer expects {target.name} but only "
+                    f"{source.name} is present, and the alias copy failed "
+                    f"({e.__class__.__name__}). Run this once from an "
+                    f"elevated cmd to fix permanently:\n"
+                    f'       copy "{source}" "{target}"',
+                    file=sys.stderr, flush=True,
+                )
     except Exception:
         pass
 

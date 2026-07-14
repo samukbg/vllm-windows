@@ -38,7 +38,7 @@ def check_vllm(venv: Path) -> tuple[str, str, str]:
         return ("RED", f"no python.exe under {venv}", "")
     try:
         out = subprocess.check_output(
-            [str(py), "-c", "import vllm; print(vllm.__version__)"],
+            [str(py), "-c", "import importlib.metadata; print(importlib.metadata.version('vllm'))"],
             text=True, timeout=30,
         ).strip()
     except subprocess.CalledProcessError as e:

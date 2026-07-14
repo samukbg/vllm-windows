@@ -24,6 +24,7 @@ from _common import VENV, VLLM_EXE, PYTHON_EXE, VLLM_BASE_CMD, MODEL_PATH, VCVAR
 SERVED_NAME = "qwen3.6-27b-autoround"
 HOST = "0.0.0.0"
 PORT = 11434  # different from vllm-windows (5000), so both can coexist if needed
+BACKEND_PORT = PORT + 1
 
 # ---- Parallelism ------------------------------------------------------------
 # MTP spec-decode is NOT compatible with PP on Qwen3-Next (NotImplementedError
@@ -32,15 +33,15 @@ PORT = 11434  # different from vllm-windows (5000), so both can coexist if neede
 # If you want max context instead, flip to PP=2 MTP=False (no spec-decode).
 TP = 1
 PP = 1
-USE_MTP = True
+USE_MTP = False
 NUM_SPEC_TOKENS = 6
 
 # ---- Memory + context -------------------------------------------------------
 # Single-card Lorbus weight footprint: ~16.9 GB. With fp8_e5m2 KV and
 # gpu-memory-utilization=0.95 we expect ~40-60K tokens of KV. Start ctx modest
 # grow after first successful boot.
-CTX = 57344
-GPU_MEM_UTIL = 0.948  # GPU1, vLLM sees free=22.76 GiB after CUDA init → 0.948 ceiling
+CTX = 64000
+GPU_MEM_UTIL = 0.94
 
 KV_CACHE_DTYPE = "fp8_e4m3"  # TRITON_ATTN only accepts fp8/fp8_e4m3 (not e5m2).
 MAX_NUM_BATCHED_TOKENS = 4128
@@ -144,7 +145,7 @@ def main() -> int:
         "--no-use-tqdm-on-load",
         # "--enable-sleep-mode", # Broken on Windows wheel (missing symbols in cumem_allocator.pyd)
         f"--host={HOST}",
-        f"--port={PORT}",
+        f"--port={BACKEND_PORT}",
         # Random free port for the DP RPC handshake (vLLM 0.20.0 hardcodes
         # 29550 by default, which leaks across runs when an engine core
         # orphans itself; harmless on 0.19.x because the same flag exists).
@@ -166,19 +167,160 @@ def main() -> int:
     print(f"  Model   : {MODEL_PATH}")
     print(f"  Ctx     : {CTX}  |  TP: {TP}  |  PP: {PP}")
     print(f"  KV dtype: {KV_CACHE_DTYPE}  |  MTP: {USE_MTP} (n={NUM_SPEC_TOKENS})")
-    print(f"  Listen  : http://{HOST}:{PORT}")
+    print(f"  Listen  : http://{HOST}:{PORT} (proxy) -> backend:{BACKEND_PORT}")
     print("=" * 60)
     print(" ".join(args))
     print("=" * 60, flush=True)
 
     log_path = log_path_for(PORT)
     log_f = open(log_path, "w", encoding="utf-8", buffering=1)
-    print(f"[launcher] tee stdout -> {log_path} (also streaming to this terminal)")
-    proc = subprocess.Popen(
-        args, env=env, cwd=str(VENV),
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1,
-        text=True, encoding="utf-8", errors="replace",
-    )
+
+    import http.server
+    import http.client
+    import socket
+    import threading
+    import time
+
+    backend_proc = None
+    last_request_time = time.time()
+    lock = threading.Lock()
+
+    def ensure_vllm_running():
+        nonlocal backend_proc, last_request_time
+        if backend_proc is not None and backend_proc.poll() is None:
+            return
+        
+        print(f"\n[proxy] Starting vLLM backend server on port {BACKEND_PORT}...", flush=True)
+        backend_proc = subprocess.Popen(
+            args, env=env, cwd=str(VENV),
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1,
+            text=True, encoding="utf-8", errors="replace",
+        )
+        
+        # Start tee thread
+        def _tee():
+            assert backend_proc.stdout is not None
+            for line in backend_proc.stdout:
+                try:
+                    sys.stdout.write(line)
+                    sys.stdout.flush()
+                except Exception:
+                    pass
+                try:
+                    log_f.write(line)
+                    log_f.flush()
+                except Exception:
+                    pass
+        threading.Thread(target=_tee, daemon=True).start()
+        
+        # Wait for backend port to become ready
+        print("[proxy] Waiting for vLLM to initialize and load model...", flush=True)
+        start_time = time.time()
+        while True:
+            if backend_proc.poll() is not None:
+                print("[proxy] vLLM failed to start!", file=sys.stderr, flush=True)
+                break
+            # Try to connect
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.5)
+                try:
+                    s.connect(("127.0.0.1", BACKEND_PORT))
+                    print("[proxy] vLLM is ready and serving requests!", flush=True)
+                    break
+                except OSError:
+                    pass
+            if time.time() - start_time > 180: # 3 minutes timeout
+                print("[proxy] Timeout waiting for vLLM to start!", file=sys.stderr, flush=True)
+                break
+            time.sleep(0.5)
+        
+        last_request_time = time.time()
+
+    class ProxyHandler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, format, *args):
+            pass
+
+        def handle_one_request(self):
+            try:
+                super().handle_one_request()
+            except Exception:
+                pass
+
+        def do_GET(self):
+            self.forward_request()
+
+        def do_POST(self):
+            self.forward_request()
+
+        def do_PUT(self):
+            self.forward_request()
+
+        def do_DELETE(self):
+            self.forward_request()
+
+        def do_OPTIONS(self):
+            self.forward_request()
+
+        def forward_request(self):
+            nonlocal last_request_time
+            with lock:
+                last_request_time = time.time()
+                ensure_vllm_running()
+
+            # Forward request to backend
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length) if content_length > 0 else None
+
+            # Connect to backend
+            conn = http.client.HTTPConnection("127.0.0.1", BACKEND_PORT, timeout=300)
+            try:
+                # Prepare headers
+                headers = {k: v for k, v in self.headers.items()}
+                headers['Host'] = f"127.0.0.1:{BACKEND_PORT}"
+                
+                conn.request(self.command, self.path, body, headers)
+                response = conn.getresponse()
+                
+                # Send response headers
+                self.send_response(response.status)
+                for k, v in response.getheaders():
+                    self.send_header(k, v)
+                self.end_headers()
+                
+                # Stream response body back
+                while True:
+                    chunk = response.read(8192)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+            except Exception as e:
+                print(f"[proxy] Error forwarding request: {e}", file=sys.stderr)
+                try:
+                    self.send_error(502, f"Bad Gateway: {e}")
+                except Exception:
+                    pass
+            finally:
+                conn.close()
+                with lock:
+                    last_request_time = time.time()
+
+    def watchdog():
+        nonlocal backend_proc
+        while True:
+            time.sleep(1.0)
+            with lock:
+                if backend_proc is not None and backend_proc.poll() is None:
+                    idle_time = time.time() - last_request_time
+                    if idle_time > 15.0:
+                        print(f"\n[proxy] Idle timeout reached ({idle_time:.1f}s > 15s). Unloading model to free VRAM...", flush=True)
+                        backend_proc.terminate()
+                        try:
+                            backend_proc.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            backend_proc.kill()
+                        backend_proc = None
+                        print("[proxy] Model successfully unloaded. VRAM freed.", flush=True)
 
     try:
         from _common import write_manifest
@@ -192,35 +334,44 @@ def main() -> int:
     except Exception as _mfe:
         print(f"[launcher] manifest write failed (non-fatal): {_mfe}", file=sys.stderr)
 
-    import threading
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
-    def _tee():
-        assert proc.stdout is not None
-        for line in proc.stdout:
-            try:
-                sys.stdout.write(line)
-                sys.stdout.flush()
-            except Exception:
-                pass
-            log_f.write(line)
-    threading.Thread(target=_tee, daemon=True).start()
 
-    def _forward(sig, _frame):
-        proc.send_signal(signal.SIGTERM)
-    signal.signal(signal.SIGINT, _forward)
-    signal.signal(signal.SIGTERM, _forward)
+    # Start proxy server on HOST:PORT
+    server = http.server.HTTPServer((HOST, PORT), ProxyHandler)
+    print(f"[proxy] Lazy loading proxy listening on http://{HOST}:{PORT}", flush=True)
+    print(f"[proxy] Will launch vLLM on port {BACKEND_PORT} upon first request,", flush=True)
+    print(f"[proxy] and automatically unload it after 15 seconds of inactivity.", flush=True)
+    
+    # Start watchdog thread
+    threading.Thread(target=watchdog, daemon=True).start()
+    
+    # Handle signals for clean termination
+    def _forward_sig(sig, _frame):
+        print("\n[proxy] Stopping proxy server and backend...", flush=True)
+        server.server_close()
+        with lock:
+            if backend_proc is not None:
+                backend_proc.terminate()
+                backend_proc.wait()
+        sys.exit(0)
+    
+    signal.signal(signal.SIGINT, _forward_sig)
+    signal.signal(signal.SIGTERM, _forward_sig)
 
     try:
-        try:
-            _rc = proc.wait()
-        except KeyboardInterrupt:
-            proc.terminate()
-            _rc = proc.wait()
-        return _rc
+        server.serve_forever()
+    except Exception as e:
+        print(f"[proxy] Server exception: {e}", file=sys.stderr)
+        return 1
     finally:
+        server.server_close()
+        with lock:
+            if backend_proc is not None:
+                backend_proc.terminate()
+                backend_proc.wait()
         try:
             from _common import clear_manifest
             clear_manifest(PORT)

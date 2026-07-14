@@ -329,8 +329,11 @@ def _bootstrap_pip() -> None:
     )
     if r.returncode != 0:
         raise RuntimeError(f"pip bootstrap failed (exit {r.returncode})")
+    import site
+    site.addsitedir(str(_site_packages()))
     if not _pip_available():
         raise RuntimeError("pip bootstrap reported success but `import pip` still fails")
+
 
 
 def _fmt_bytes(n: float) -> str:
